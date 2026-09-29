@@ -1,27 +1,21 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { createUser, adminUserApiMessage } from '@/lib/admin-user-api';
-import { getCurrentUser } from '@/lib/auth';
 import { roles } from '@/lib/roles';
 import type { Role } from '@/lib/types';
 import { ErrorState, FormSkeleton } from './ui';
+import { useAuthUser } from './auth-boundary';
 
 const accountRoles = roles;
 
 export function AdminUserForm() {
-  const [role, setRole] = useState<Role | null>(null);
+  const user = useAuthUser();
+  const role = user?.role ?? null;
   const [form, setForm] = useState({ name: '', email: '', role: 'operator' as Role, password: '', password_confirmation: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  useEffect(() => {
-    getCurrentUser().then((result) => {
-      if (result.status === 'authenticated') setRole(result.user.role ?? null);
-      else setRole(null);
-    });
-  }, []);
 
   function update(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));

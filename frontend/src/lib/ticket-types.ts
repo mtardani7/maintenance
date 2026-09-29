@@ -60,6 +60,7 @@ export type TicketFilters = {
   technician?: string;
   sort?: "newest" | "oldest";
   page?: number;
+  perPage?: number;
 };
 
 export type TicketPage = {

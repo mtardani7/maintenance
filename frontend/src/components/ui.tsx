@@ -45,6 +45,24 @@ export function TableSkeleton({
   return <div className={`table-skeleton ${className}`.trim()} role="status" aria-label="Memuat tabel"><table className={tableClassName}><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{Array.from({ length: rows }, (_, row) => <tr className="skeleton-row" key={row}>{headers.map((header, column) => <td key={header}><Skeleton className={column === 0 ? 'table-skeleton__primary' : 'table-skeleton__cell'} /></td>)}</tr>)}</tbody></table></div>;
 }
 
+export function MaintenanceTable({
+  children,
+  className = '',
+  containerClassName = '',
+  label,
+}: {
+  children: ReactNode;
+  className?: string;
+  containerClassName?: string;
+  label: string;
+}) {
+  return (
+    <div className={`maintenance-table-container ${containerClassName}`.trim()} role="region" aria-label={label}>
+      <table className={`maintenance-table ${className}`.trim()}>{children}</table>
+    </div>
+  );
+}
+
 export function PaginationSkeleton({ className = '' }: { className?: string }) {
   return <div className={`pagination-skeleton ${className}`.trim()} aria-hidden="true"><Skeleton className="pagination-skeleton__summary" /><span><Skeleton /><Skeleton /><Skeleton /></span></div>;
 }

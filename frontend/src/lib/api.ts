@@ -43,6 +43,9 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   });
 
   if (!response.ok) {
+    if ([401, 419].includes(response.status) && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('maintenance:session-expired', { detail: { path } }));
+    }
     let payload: ApiErrorPayload | undefined;
     try {
       payload = (await response.json()) as ApiErrorPayload;

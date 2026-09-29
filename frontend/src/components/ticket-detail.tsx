@@ -3,10 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { addSparePart, apiMessage, getMaintenanceUsers, getTicket, performTicketAction, removeSparePart, updateBreakdownAnalysis, updateVerificationChecklist } from '@/lib/ticket-api';
-import { getCurrentUser } from '@/lib/auth';
 import type { BreakdownAnalysisInput, MaintenanceUser, SparePart, Ticket, TicketActionInput, VerificationChecklist, VerificationKey, VerificationValue } from '@/lib/ticket-types';
-import type { Role } from '@/lib/types';
 import { DetailSkeleton, ErrorState } from './ui';
+import { useAuthUser } from './auth-boundary';
 
 function label(value: string) {
   return value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -38,8 +37,9 @@ const problemLabels: Record<string, string> = { 'Machine stopped': 'Mesin berhen
 const sourceLabels: Record<string, string> = { OPERATOR: 'Operator', QA: 'Mutu', MANUAL: 'Manual' };
 
 export function TicketDetailView({ ticketId }: { ticketId: string }) {
+  const currentUser = useAuthUser();
+  const role = currentUser?.role ?? null;
   const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [role, setRole] = useState<Role | null>(null);
   const [maintenanceUsers, setMaintenanceUsers] = useState<MaintenanceUser[]>([]);
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -81,14 +81,8 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
       setActionById(result.actionBy?.id ? String(result.actionBy.id) : '');
       setVerification(result.verificationChecklist ?? {});
     }).catch((requestError) => setError(apiMessage(requestError)));
-    getCurrentUser().then((result) => {
-      if (result.status !== 'authenticated') return;
-      setRole(result.user.role ?? null);
-      if (result.user.role === 'technician') {
-        getMaintenanceUsers().then(setMaintenanceUsers).catch(() => setMaintenanceUsers([]));
-      }
-    });
-  }, [ticketId, retryKey]);
+    if (role === 'technician') getMaintenanceUsers().then(setMaintenanceUsers).catch(() => setMaintenanceUsers([]));
+  }, [ticketId, retryKey, role]);
 
   if (error && !ticket) return <ErrorState title="Tiket tidak tersedia" description="Periksa koneksi lalu coba muat ulang." onRetry={() => { setError(''); setRetryKey((value) => value + 1); }} />;
   if (!ticket) return <DetailSkeleton sections={["Informasi tiket", "Hasil pekerjaan", "Suku cadang", "Analisis gangguan", "Verifikasi", "Riwayat"]} />;
@@ -214,6 +208,6 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
       {ticket.status === 'CLOSED' && <section className="ticket-info-card closed-history-card"><div className="card-heading"><div><h2>Riwayat penutupan</h2><p>Tiket ini sudah ditutup. Informasi pekerjaan tersimpan dan tidak dapat diubah.</p></div></div><dl className="ticket-facts"><div><dt>Waktu ditutup</dt><dd>{formatDateTime(ticket.closedAt)}</dd></div><div><dt>Ditutup oleh</dt><dd>{ticket.closedBy?.name || '—'}</dd></div></dl></section>}
     </main>
     <aside className="ticket-actions"><Link className="back-link" href="/tickets">Kembali ke daftar tiket</Link><section className="action-card"><p className="eyebrow">Pemeliharaan</p><p className="action-note">{ticket.status === 'OPEN' ? 'Lengkapi hasil pekerjaan untuk menutup tiket.' : 'Tiket sudah ditutup dan tersimpan di riwayat.'}</p></section></aside>
-    {successMessage && <div className="machine-modal-backdrop" role="presentation"><section className="machine-modal machine-success-modal" role="alertdialog" aria-modal="true" aria-labelledby="ticket-action-success-title"><span className="machine-success-icon">✓</span><h2 id="ticket-action-success-title">Berhasil</h2><p>{successMessage}</p><div className="machine-modal-actions"><button className="primary-button" type="button" onClick={() => setSuccessMessage('')}>OK</button></div></section></div>}
+    {successMessage && <div className="machine-modal-backdrop" role="presentation"><section className="machine-modal machine-success-modal" role="alertdialog" aria-modal="true" aria-labelledby="ticket-action-success-title"><span className="machine-success-icon">✓</span><h2 id="ticket-action-success-title">{successMessage.startsWith('Tiket berhasil ditutup') ? 'Tiket berhasil diselesaikan' : 'Berhasil'}</h2><p>{successMessage}</p><div className="machine-modal-actions"><button className="primary-button" type="button" onClick={() => setSuccessMessage('')}>OK</button></div></section></div>}
   </div>;
 }

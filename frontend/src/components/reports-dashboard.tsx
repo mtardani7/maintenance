@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { getPlantOptions, type PlantOption } from '@/lib/maintenance-api';
 import { exportReports, getReportMetrics, operationsApiMessage } from '@/lib/operations-api';
 import type { OperationsFilters, ReportMetrics } from '@/lib/operations-types';
-import { CardSkeleton, EmptyState, ErrorState, ListSkeleton } from './ui';
+import { CardSkeleton, EmptyState, ErrorState, MaintenanceTable, TableSkeleton } from './ui';
 
 const cards: { key: keyof ReportMetrics; label: string }[] = [
   { key: 'mttr', label: 'Rata-rata waktu perbaikan' }, { key: 'mtbf', label: 'Rata-rata waktu antar gangguan' },
@@ -47,7 +47,7 @@ export function ReportsDashboard() {
     </div>
     {error ? <ErrorState title="Laporan belum tersedia" description="Periksa koneksi lalu coba muat ulang." onRetry={() => setRetryKey((value) => value + 1)} /> : loading ? <>
       <div className="report-metric-grid">{cards.map((card) => <CardSkeleton key={card.key} className="metric-card" />)}</div>
-      <div className="report-tables">{["Pemeliharaan per Plant", "Mesin dengan gangguan terbanyak", "Jenis gangguan terbanyak"].map((title) => <section className="work-panel report-table" key={title}><div className="work-panel__header"><h3>{title}</h3></div><ListSkeleton rows={4} className="report-skeleton-list" /></section>)}</div>
+      <div className="report-tables">{["Pemeliharaan per Plant", "Mesin dengan gangguan terbanyak", "Jenis gangguan terbanyak"].map((title) => <section className="work-panel report-table" key={title}><div className="work-panel__header"><h3>{title}</h3></div><TableSkeleton className="report-data-scroll" tableClassName="report-data-table" headers={["Data", "Jumlah"]} rows={4} /></section>)}</div>
     </> : metrics && Object.keys(metrics).length ? <>
       <div className="report-metric-grid">{cards.map((card) => <article className="metric-card" key={card.key}><span className="metric-card__label">{card.label}</span><strong className="metric-card__value">{metricValue(metrics[card.key])}</strong></article>)}</div>
       <div className="report-tables"><ReportTable title="Pemeliharaan per Plant" rows={metrics.maintenanceByPlant?.map((item) => [item.plant, String(item.total)]) ?? []} /><ReportTable title="Mesin dengan gangguan terbanyak" rows={metrics.topProblematicMachines?.map((item) => [item.machine, String(item.total)]) ?? []} /><ReportTable title="Jenis gangguan terbanyak" rows={metrics.topFailureTypes?.map((item) => [item.type, String(item.total)]) ?? []} /></div>
@@ -56,5 +56,5 @@ export function ReportsDashboard() {
 }
 
 function ReportTable({ title, rows }: { title: string; rows: string[][] }) {
-  return <section className="work-panel report-table"><div className="work-panel__header"><h3>{title}</h3></div>{rows.length ? rows.map((row) => <div className="report-row" key={row[0]}><span>{row[0]}</span><strong>{row[1]}</strong></div>) : <EmptyState title="Belum ada data" description="Belum ada catatan untuk ditampilkan." />}</section>;
+	return <section className="work-panel report-table"><div className="work-panel__header"><h3>{title}</h3></div>{rows.length ? <MaintenanceTable className="report-data-table" label={title}><thead><tr><th>Data</th><th>Jumlah</th></tr></thead><tbody>{rows.map((row) => <tr key={row[0]}><td>{row[0]}</td><td><strong>{row[1]}</strong></td></tr>)}</tbody></MaintenanceTable> : <EmptyState title="Belum ada data" description="Belum ada catatan untuk ditampilkan." />}</section>;
 }

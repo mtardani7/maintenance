@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Bell, ClipboardList, House, Plus, QrCode, UserRound, X } from 'lucide-react';
-import { getCurrentUser } from '@/lib/auth';
-import type { User } from '@/lib/types';
+import { useAuthUser } from './auth-boundary';
 
 export function MobileBottomNavigation() {
   const pathname = usePathname();
@@ -13,8 +12,7 @@ export function MobileBottomNavigation() {
   const [choiceOpen, setChoiceOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [userLoaded, setUserLoaded] = useState(false);
+  const user = useAuthUser();
 
   function openManualReport() {
     setChoiceOpen(false);
@@ -26,14 +24,7 @@ export function MobileBottomNavigation() {
     router.push('/incidents');
   }
 
-  async function openAccount() {
-    setAccountOpen(true);
-    if (!userLoaded) {
-      const result = await getCurrentUser();
-      if (result.status === 'authenticated') setUser(result.user);
-      setUserLoaded(true);
-    }
-  }
+  function openAccount() { setAccountOpen(true); }
 
   return <>
     <nav className="mobile-bottom-nav" aria-label="Navigasi mobile">

@@ -1472,7 +1472,7 @@ a { color: inherit; text-decoration: none; }
 .ticket-page-heading .section-heading h1 { font-size: clamp(22px, 2vw, 27px); }
 .ticket-page-heading .section-heading-description { margin-top: 4px; font-size: 13px; }
 .ticket-browser { box-sizing: border-box; width: 100%; max-width: 1400px; min-width: 0; margin-inline: auto; }
-.ticket-browser .ticket-filters { box-sizing: border-box; display: grid; grid-template-columns: minmax(220px, 2fr) minmax(125px, .9fr) minmax(155px, 1.1fr) minmax(145px, auto) auto; align-items: end; gap: 9px; width: 100%; max-width: 100%; min-width: 0; margin-bottom: 13px; padding: 12px; border: 1px solid #e1e8e3; border-radius: 11px; background: #fff; box-shadow: 0 1px 2px rgb(15 23 42 / .035); }
+.ticket-browser .ticket-filters { box-sizing: border-box; display: grid; grid-template-columns: minmax(220px, 2fr) minmax(125px, .9fr) minmax(155px, 1.1fr) minmax(100px, .7fr) minmax(145px, auto) auto; align-items: end; gap: 9px; width: 100%; max-width: 100%; min-width: 0; margin-bottom: 13px; padding: 12px; border: 1px solid #e1e8e3; border-radius: 11px; background: #fff; box-shadow: 0 1px 2px rgb(15 23 42 / .035); }
 .ticket-browser .ticket-filters > label { min-width: 0; color: #52645b; font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .ticket-browser .ticket-filters input, .ticket-browser .ticket-filters select { box-sizing: border-box; width: 100%; height: 39px; min-height: 39px; margin-top: 5px; padding: 0 10px; border: 1px solid #d7e1db; border-radius: 7px; background: #fff; color: #1d2d25; font-size: 12px; }
 .ticket-browser .ticket-filters input:focus, .ticket-browser .ticket-filters select:focus { border-color: #25845d; box-shadow: 0 0 0 3px rgb(37 132 93 / .12); outline: none; }
@@ -1519,7 +1519,7 @@ a { color: inherit; text-decoration: none; }
 .ticket-empty .secondary-action { display: inline-flex; width: auto; min-height: 34px; align-items: center; gap: 6px; margin-top: 4px; padding: 0 11px; }
 .ticket-empty .secondary-action svg { width: 14px; height: 14px; }
 @media (max-width: 1050px) {
-  .ticket-browser .ticket-filters { grid-template-columns: minmax(210px, 1.6fr) minmax(125px, .9fr) minmax(150px, 1.1fr) auto; }
+.ticket-browser .ticket-filters { grid-template-columns: minmax(210px, 1.6fr) minmax(125px, .9fr) minmax(150px, 1.1fr) minmax(100px, .7fr) auto; }
   .ticket-browser .filter-search { grid-column: span 2; }
   .ticket-browser .ticket-filter-reset { justify-self: stretch; }
 }
@@ -1716,4 +1716,301 @@ a { color: inherit; text-decoration: none; }
 	.plant-pagination > div { display: flex; width: 100%; min-width: 0; flex-wrap: wrap; }
 	.pagination-skeleton { align-items: stretch; flex-direction: row; gap: 8px; }
 	.pagination-skeleton > span { min-width: 0; flex-wrap: wrap; }
+}
+
+/* Shared table foundation: Master Mesin is the visual reference. */
+.maintenance-table-container {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	overflow-x: auto;
+	overscroll-behavior-inline: contain;
+}
+
+.maintenance-table,
+.table-skeleton table {
+	width: 100%;
+	border-collapse: collapse;
+	color: #0f172a;
+	font-size: 13px;
+	text-align: left;
+}
+
+.maintenance-table th,
+.machine-data-table th,
+.plant-table th,
+.incident-table th,
+.table-skeleton thead th {
+	height: 40px;
+	border-bottom: 1px solid #e2e8f0;
+	background: #f8fafc;
+	color: #64748b;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: .04em;
+	padding: 12px 20px;
+	text-align: left;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.maintenance-table td,
+.machine-data-table td,
+.plant-table td,
+.incident-table td,
+.table-skeleton .skeleton-row td {
+	padding: 13px 20px;
+	vertical-align: middle;
+}
+
+.maintenance-table tbody tr,
+.machine-data-table tbody tr,
+.plant-table tbody tr,
+.incident-table tbody tr {
+	min-height: 50px;
+	border-top: 1px solid #f1f5f9;
+	color: #0f172a;
+}
+
+.maintenance-table tbody tr:hover,
+.machine-data-table tbody tr:hover,
+.plant-table tbody tr:hover,
+.incident-table tbody tr:hover {
+	background: #f8fafc;
+}
+
+.maintenance-table td strong,
+.machine-data-table td strong,
+.plant-table td strong,
+.incident-table td strong { font-weight: 600; }
+.maintenance-table td small,
+.machine-data-table td small,
+.plant-table td small,
+.incident-table td small {
+	display: block;
+	margin-top: 3px;
+	color: #64748b;
+	font-size: 11px;
+	line-height: 1.4;
+}
+
+.maintenance-table-container.machine-table-scroll,
+.maintenance-table-container.plant-table-scroll { border: 0; border-radius: 0; box-shadow: none; }
+.maintenance-table-container.incident-table-wrap {
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 1px 2px rgb(15 23 42 / .04);
+}
+.maintenance-table-container.incident-table-wrap .incident-table { border: 0; }
+.maintenance-table-container .report-data-table { min-width: 0; }
+.report-data-table th:first-child,
+.report-data-table td:first-child { padding-left: 18px; }
+.report-data-table td:last-child { text-align: right; }
+.report-data-table td strong { color: #176b4a; font-size: 12px; }
+
+.machine-status,
+.plant-status,
+.incident-status-badge,
+.ticket-list-status {
+	display: inline-flex;
+	min-height: 23px;
+	align-items: center;
+	gap: 5px;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	padding: 2px 8px;
+	font-size: 10px;
+	font-weight: 700;
+	line-height: 1.2;
+	white-space: nowrap;
+}
+.machine-status svg,
+.plant-status svg { width: 13px; height: 13px; }
+.machine-status--active,
+.plant-status--active,
+.incident-status-badge--resolved,
+.ticket-list-status--resolved { background: #eaf6ee; color: #19734d; }
+.machine-status--inactive,
+.plant-status--inactive,
+.incident-status-badge--closed,
+.ticket-list-status--closed { background: #edf1ef; color: #58665f; }
+.incident-status-badge--open,
+.ticket-list-status--open { background: #eaf6ee; color: #19734d; }
+
+.machine-data-table .machine-actions button,
+.plant-table .plant-icon-button {
+	width: 36px;
+	min-width: 36px;
+	height: 36px;
+	min-height: 36px;
+	border-radius: 8px;
+}
+.machine-data-table .machine-actions button:hover,
+.plant-table .plant-icon-button:hover { background: #f1f5f9; color: #0f172a; }
+.machine-data-table td:last-child,
+.plant-table td:last-child { white-space: nowrap; }
+
+.ticket-browser .ticket-table__head {
+	min-height: 40px;
+	border-bottom-color: #e2e8f0;
+	background: #f8fafc;
+	color: #64748b;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: .04em;
+	text-transform: uppercase;
+}
+.ticket-browser .ticket-row {
+	min-height: 50px;
+	border-bottom-color: #f1f5f9;
+	font-size: 13px;
+}
+.ticket-browser .ticket-row:hover { background: #f8fafc; }
+.ticket-browser .ticket-row small { color: #64748b; font-size: 11px; }
+.ticket-view-action { min-height: 32px; border-radius: 8px; }
+.ticket-browser .ticket-results { border-color: #e2e8f0; border-radius: 10px; box-shadow: 0 1px 2px rgb(15 23 42 / .04); }
+.ticket-browser .ticket-pagination { border-top-color: #e2e8f0; }
+
+.machine-pagination,
+.plant-pagination,
+.incident-pagination,
+.ticket-pagination {
+	min-height: 52px;
+	border-top: 1px solid #e2e8f0;
+	padding: 10px 16px;
+	color: #607168;
+	font-size: 12px;
+}
+.machine-pagination button,
+.plant-pagination button,
+.incident-pagination button,
+.ticket-pagination__controls button {
+	min-height: 34px;
+	border-color: #e2e8f0;
+	border-radius: 8px;
+	font-size: 11px;
+}
+
+/* Incident and ticket use the same semantic, compact table surface. */
+.ticket-table-wrap {
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	border: 1px solid #e2e8f0;
+	border-radius: 10px;
+	background: #fff;
+	box-shadow: 0 1px 2px rgb(15 23 42 / .04);
+}
+.ticket-data-table { min-width: 700px; }
+.ticket-data-table th { background: #f8fafc; }
+.ticket-data-table th,
+.ticket-data-table td { padding: 11px 14px; }
+.ticket-data-table td strong,
+.ticket-data-table td small { display: block; }
+.ticket-data-table td strong { color: #334155; font-size: 12px; font-weight: 600; }
+.ticket-data-table td small { max-width: 280px; margin-top: 4px; overflow: hidden; color: #64748b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.ticket-data-table__problem { max-width: 310px; }
+.ticket-view-action { display: inline-flex; min-height: 32px; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; border: 1px solid #e2e8f0; border-radius: 7px; color: #334155; font-size: 11px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.ticket-view-action svg { width: 14px; height: 14px; }
+.ticket-view-action:hover { border-color: #cbd5e1; background: #f8fafc; }
+.ticket-data-table .ticket-list-status,
+.incident-table .incident-status-badge { display: inline-flex; min-height: 23px; align-items: center; margin: 0; padding: 0 8px; border-radius: 999px; font-size: 10px; font-weight: 750; letter-spacing: .02em; }
+.ticket-list-status--open,
+.incident-status-badge--open { background: #eaf6ee; color: #19734d; }
+.ticket-list-status--closed,
+.incident-status-badge--resolved { background: #edf1ef; color: #58665f; }
+.incident-history-filters,
+.ticket-browser .ticket-filters { align-items: end; gap: 9px; padding: 12px; border-color: #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgb(15 23 42 / .04); }
+.incident-history-filters > label,
+.ticket-browser .ticket-filters > label { color: #52645b; font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.incident-history-filters input,
+.incident-history-filters select,
+.ticket-browser .ticket-filters input,
+.ticket-browser .ticket-filters select { box-sizing: border-box; height: 39px; min-height: 39px; border: 1px solid #d7e1db; border-radius: 7px; font-size: 12px; }
+.incident-history { margin-top: 14px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.incident-history-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.incident-history-actions .incident-refresh-button,
+.incident-history-actions .incident-open-button { display: inline-flex; width: auto; min-height: 38px; align-items: center; justify-content: center; gap: 7px; padding: 0 12px; white-space: nowrap; }
+.pagination-page-size { display: inline-flex; align-items: center; gap: 6px; color: #58665f; font-size: 11px; white-space: nowrap; }
+.pagination-page-size select { width: auto; min-width: 58px; height: 30px; min-height: 30px; margin: 0; padding: 0 7px; border: 1px solid #dce5df; border-radius: 7px; background: #fff; color: #3d5749; font-size: 11px; }
+.ticket-browser .ticket-filters .ticket-page-size-filter { display: block; min-width: 0; }
+.ticket-browser .ticket-filters .ticket-page-size-filter select { width: 100%; height: 39px; min-height: 39px; margin-top: 5px; padding: 0 10px; }
+.ticket-browser .ticket-results { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+.ticket-browser .ticket-results .ticket-table-wrap { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.ticket-browser .ticket-results .ticket-pagination { margin: 0; border-top: 1px solid #e2e8f0; border-radius: 0 0 12px 12px; background: transparent; }
+.incident-status-badge--unknown { background: #edf1ef; color: #58665f; }
+.incident-table tbody tr.incident-table__row--no-ticket { background: #f8fafc; }
+.incident-table tbody tr.incident-table__row--no-ticket:hover { background: #f1f5f9; }
+.incident-ticket-missing { color: #64748b; }
+.ticket-detail-hero { border-color: #e2e8f0; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgb(15 23 42 / .04); }
+.ticket-detail-hero::after { display: none; }
+.ticket-detail-hero .eyebrow { color: #64748b; }
+.ticket-detail-hero h1 { font-size: clamp(22px, 2vw, 27px); letter-spacing: -.02em; }
+.ticket-detail-hero p:last-child { color: #64748b; }
+.ticket-detail-layout main > .ticket-detail-hero { order: 0; }
+.ticket-detail-layout main > .ticket-summary-card { order: 1; }
+.ticket-detail-layout main > .ticket-work-section { order: 2; }
+.ticket-detail-layout main > .ticket-spare-section { order: 3; }
+.ticket-detail-layout main > .ticket-breakdown-section { order: 4; }
+.ticket-detail-layout main > .verification-card { order: 5; }
+.ticket-detail-layout main > .closed-history-card { order: 6; }
+.ticket-detail-layout .ticket-info-card { margin-bottom: 12px; padding: 18px; border-radius: 10px; box-shadow: 0 1px 2px rgb(15 23 42 / .04); }
+.ticket-detail-layout .ticket-info-card h2 { font-size: 15px; }
+.ticket-detail-layout .ticket-facts { gap: 14px 12px; margin: 16px 0; }
+.ticket-detail-layout .ticket-status { display: inline-flex; min-height: 23px; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 750; letter-spacing: .02em; }
+.ticket-detail-layout .ticket-status--open { background: #eaf6ee; color: #19734d; }
+.ticket-detail-layout .ticket-status--closed { background: #edf1ef; color: #58665f; }
+
+@media (max-width: 760px) {
+	.ticket-data-table { min-width: 660px; }
+	.ticket-data-table th,
+	.ticket-data-table td { padding-right: 14px; padding-left: 14px; }
+}
+@media (max-width: 640px) {
+	.incident-history-actions { width: 100%; }
+	.incident-history-actions .incident-refresh-button,
+	.incident-history-actions .incident-open-button { flex: 1 1 0; width: auto; min-width: 0; }
+	.incident-history-filters { grid-template-columns: minmax(0, 1fr); }
+	.incident-filter-search { grid-column: auto; }
+	.incident-history-filters > label,
+	.incident-history-filters > .incident-more-filters,
+	.incident-history-filters > .incident-reset-filter { width: 100%; }
+	.ticket-data-table { min-width: 620px; }
+}
+@media (max-width: 420px) {
+	.ticket-data-table th,
+	.ticket-data-table td { padding-right: 11px; padding-left: 11px; }
+}
+
+@media (max-width: 760px) {
+	.machine-data-table th,
+	.machine-data-table td,
+	.plant-table th,
+	.plant-table td,
+	.incident-table th,
+	.incident-table td,
+	.maintenance-table th,
+	.maintenance-table td { padding-right: 14px; padding-left: 14px; }
+	.machine-data-table,
+	.plant-table,
+	.incident-table { min-width: 680px; }
+	.machine-pagination,
+	.plant-pagination,
+	.incident-pagination { padding: 10px 14px; }
+}
+
+@media (max-width: 420px) {
+	.machine-data-table th,
+	.machine-data-table td,
+	.plant-table th,
+	.plant-table td,
+	.incident-table th,
+	.incident-table td,
+	.maintenance-table th,
+	.maintenance-table td { padding-right: 12px; padding-left: 12px; }
+	.machine-data-table,
+	.plant-table,
+	.incident-table { min-width: 640px; }
 }

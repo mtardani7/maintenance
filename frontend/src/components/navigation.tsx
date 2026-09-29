@@ -4,9 +4,8 @@ import Link from 'next/link';
 import { Bell, ChevronLeft, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Settings, Ticket, Wrench, X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { useEffect } from 'react';
-import { getCurrentUser } from '@/lib/auth';
-import type { Role, User } from '@/lib/types';
+import { useAuthUser } from './auth-boundary';
+import type { Role } from '@/lib/types';
 
 const groups = [
   { label: 'Operasional', links: [
@@ -29,10 +28,8 @@ export function Navigation() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [role, setRole] = useState<Role>('operator');
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => { getCurrentUser().then((result) => { if (result.status === 'authenticated') { setUser(result.user); if (result.user.role) setRole(result.user.role); } }); }, []);
+  const user = useAuthUser();
+  const role: Role = user?.role ?? 'operator';
 
   return (
     <>

@@ -56,7 +56,7 @@ function withQuery(path: string, filters: TicketFilters) {
   if (filters.technician) query.set("technician", filters.technician);
   if (filters.sort) query.set("sort", filters.sort);
   if (filters.page) query.set("page", String(filters.page));
-  query.set("per_page", "10");
+  query.set("per_page", String(filters.perPage ?? 10));
   const suffix = query.toString();
   return suffix ? `${path}${path.includes("?") ? "&" : "?"}${suffix}` : path;
 }

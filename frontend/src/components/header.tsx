@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { Bell, ChevronDown, Home, Moon, UserCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getUnreadNotificationCount } from '@/lib/notification-api';
-import { getCurrentUser, logout } from '@/lib/auth';
+import { logout } from '@/lib/auth';
 import { getNotifications } from '@/lib/notification-api';
 import type { AppNotification } from '@/lib/notification-types';
-import type { User } from '@/lib/types';
+import { useAuthUser } from './auth-boundary';
 
 const titles: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -24,13 +24,13 @@ export function Header() {
   const pathname = usePathname();
   const title = titles[pathname] ?? 'Dashboard';
   const [unread, setUnread] = useState(0);
-  const [user, setUser] = useState<User | null>(null);
+  const user = useAuthUser();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
 
-  useEffect(() => { getUnreadNotificationCount().then(setUnread).catch(() => setUnread(0)); getCurrentUser().then((result) => { if (result.status === 'authenticated') setUser(result.user); }); }, [pathname]);
+  useEffect(() => { getUnreadNotificationCount().then(setUnread).catch(() => setUnread(0)); }, [pathname]);
 
   const initials = user?.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() ?? 'OP';
   async function signOut() { try { await logout(); } finally { window.location.assign('/login'); } }
