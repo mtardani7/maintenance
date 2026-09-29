@@ -11,6 +11,7 @@ export function AuthBoundary({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     getCurrentUser().then((result) => {
@@ -24,10 +25,10 @@ export function AuthBoundary({ children }: { children: ReactNode }) {
         setStatus('error');
       }
     });
-  }, [router]);
+  }, [router, retryKey]);
 
   if (status === 'loading') return <LoadingState />;
-  if (status === 'error') return <ErrorState title="Autentikasi belum terhubung" description={message} />;
+  if (status === 'error') return <ErrorState title="Autentikasi belum terhubung" description="Sesi belum dapat diperiksa. Periksa koneksi lalu coba lagi." onRetry={() => { setStatus('loading'); setRetryKey((value) => value + 1); }} />;
   if (!user) return <LoadingState label="Mengalihkan ke halaman masuk" />;
   return <>{children}</>;
 }

@@ -22,4 +22,5 @@ export type QADefectPage = {
   data: QADefect[];
   currentPage: number;
   lastPage: number;
+  total: number;
 };

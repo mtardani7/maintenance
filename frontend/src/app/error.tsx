@@ -2,6 +2,6 @@
 
 import { ErrorState } from '@/components/ui';
 
-export default function GlobalError() {
-  return <ErrorState description="Ruang kerja tidak dapat dimuat. Segarkan halaman untuk mencoba lagi." />;
+export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  return <ErrorState description="Ruang kerja tidak dapat dimuat. Coba muat ulang halaman ini." onRetry={reset} />;
 }

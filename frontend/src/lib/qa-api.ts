@@ -2,7 +2,7 @@ import { apiRequest, ApiConfigurationError, ApiError } from './api';
 import type { QADefect, QADefectPage, QAMaintenanceFilter } from './qa-types';
 import type { Ticket } from './ticket-types';
 
-type DefectResponse = QADefect[] | { data: QADefect[]; meta?: { current_page?: number; last_page?: number } };
+type DefectResponse = QADefect[] | { data: QADefect[]; meta?: { current_page?: number; last_page?: number; total?: number } };
 
 const paths = {
   list: process.env.NEXT_PUBLIC_QA_DEFECTS_PATH,
@@ -22,8 +22,8 @@ function defectPath(template: string | undefined, id: QADefect['id'], label: str
 }
 
 function normalize(response: DefectResponse, page: number): QADefectPage {
-  if (Array.isArray(response)) return { data: response, currentPage: page, lastPage: 1 };
-  return { data: response.data, currentPage: response.meta?.current_page ?? page, lastPage: response.meta?.last_page ?? 1 };
+  if (Array.isArray(response)) return { data: response, currentPage: page, lastPage: 1, total: response.length };
+  return { data: response.data, currentPage: response.meta?.current_page ?? page, lastPage: response.meta?.last_page ?? 1, total: response.meta?.total ?? response.data.length };
 }
 
 export async function getQADefects(page = 1, filter: QAMaintenanceFilter = 'all'): Promise<QADefectPage> {
