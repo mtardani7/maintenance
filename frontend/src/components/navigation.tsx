@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bell, ChevronLeft, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Settings, Ticket, Wrench, X } from 'lucide-react';
+import { Bell, ChevronLeft, ChevronRight, ClipboardList, Factory, LayoutDashboard, Menu, Settings, Ticket, UserRoundCog, Wrench, X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useAuthUser } from './auth-boundary';
@@ -11,11 +11,12 @@ const groups = [
   { label: 'Operasional', links: [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/incidents', label: 'Insiden', icon: ClipboardList },
-    { href: '/tickets', label: 'Tiket', icon: Ticket },
+    { href: '/tickets', label: 'Tiket', icon: Ticket, roles: ['technician', 'supervisor', 'qa', 'admin'] as Role[] },
   ] },
   { label: 'Master Data', links: [
-    { href: '/machines', label: 'Mesin', icon: Wrench },
-    { href: '/plants', label: 'Plant', icon: Factory, roles: ['admin'] as Role[] },
+    { href: '/machines', label: 'Mesin', icon: Wrench, roles: ['technician', 'supervisor', 'qa', 'admin'] as Role[] },
+    { href: '/plants', label: 'Plant', icon: Factory, roles: ['technician', 'admin'] as Role[] },
+    { href: '/users', label: 'Pengguna', icon: UserRoundCog, roles: ['admin'] as Role[] },
   ] },
   { label: 'Pemantauan', links: [
     { href: '/notifications', label: 'Notifikasi', icon: Bell },
@@ -43,11 +44,15 @@ export function Navigation() {
           <button className="mobile-close" type="button" onClick={() => setMobileOpen(false)} aria-label="Tutup navigasi"><X aria-hidden="true" /></button>
         </div>
         <nav aria-label="Navigasi utama">
-          {groups.map((group) => <div className="nav-group" key={group.label}><div className={`nav-label ${collapsed ? 'nav-label--collapsed' : ''}`}>{collapsed ? '•' : group.label}</div>{group.links.filter((link) => !link.roles || link.roles.includes(role)).map((link) => {
+          {groups.map((group) => {
+            const visibleLinks = group.links.filter((link) => !link.roles || link.roles.includes(role));
+            if (visibleLinks.length === 0) return null;
+            return <div className="nav-group" key={group.label}><div className={`nav-label ${collapsed ? 'nav-label--collapsed' : ''}`}>{collapsed ? '•' : group.label}</div>{visibleLinks.map((link) => {
             const active = pathname === link.href || (link.href !== '/dashboard' && pathname.startsWith(link.href));
             const Icon = link.icon;
             return <Link key={link.href} href={link.href} onClick={() => setMobileOpen(false)} title={collapsed ? link.label : undefined} className={`nav-link ${active ? 'nav-link--active' : ''}`}><Icon className="nav-icon" aria-hidden="true" /><span className="nav-link-copy">{link.label}</span></Link>;
-          })}</div>)}
+            })}</div>;
+          })}
         </nav>
         <div className="sidebar-foot"><div className="account-card"><span className="account-avatar">{user?.name?.slice(0, 2).toUpperCase() || 'SP'}</span><div><strong>{user?.name || 'Pengguna'}</strong><small>{user?.role || 'Pengguna terautentikasi'}</small></div></div></div>
       </aside>

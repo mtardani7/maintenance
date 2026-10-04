@@ -19,7 +19,7 @@ class IncidentResource extends JsonResource
             'result' => $this->result,
             'status' => $this->status,
             'createdAt' => $this->created_at?->toISOString(),
-            'ticket_number' => $this->ticket_number,
+            'ticket_number' => $this->whenLoaded('maintenanceTicket', fn () => $this->maintenanceTicket?->ticket_number),
         ];
     }
 }

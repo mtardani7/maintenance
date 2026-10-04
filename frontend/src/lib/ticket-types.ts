@@ -21,8 +21,8 @@ export type Ticket = {
   correctiveActionPlan?: string;
   targetAt?: string;
   actionBy?: { id: number | string; name: string; role?: string };
-  closedAt?: string;
-  closedBy?: { id: number | string; name: string; role?: string };
+  closed_at?: string;
+  closed_by?: { id: number | string; name: string; role?: string };
   verificationChecklist?: VerificationChecklist;
   spareParts: SparePart[];
   sourceType?: "OPERATOR" | "QA" | "MANUAL";
@@ -76,7 +76,6 @@ export type TicketAction =
 export type TicketActionInput = {
   reason: string;
   actionTaken: string;
-  executorId: number | string;
   durationHours?: number;
   solution?: string;
 };

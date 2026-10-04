@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MaintenanceTicket;
+use App\Models\Incident;
 use App\Models\User;
 use App\Services\MaintenanceTicketCreator;
 use Illuminate\Http\JsonResponse;
@@ -87,7 +88,6 @@ class MaintenanceTicketController extends Controller
             'action' => ['sometimes', 'in:close'],
             'reason' => ['required', 'string', 'min:1', 'max:5000'],
             'action_taken' => ['required', 'string', 'min:1', 'max:5000'],
-            'executor_id' => ['required', Rule::exists('users', 'id')->where(fn ($query) => $query->where('role', 'technician'))],
             'duration_hours' => ['required', 'numeric', 'min:0.25', 'max:1000'],
             'solution' => ['required', 'string', 'min:1', 'max:5000'],
         ]);
@@ -107,12 +107,17 @@ class MaintenanceTicketController extends Controller
                 'status' => 'CLOSED',
                 'reason' => trim($data['reason']),
                 'action_taken' => trim($data['action_taken']),
-                'executor_id' => $data['executor_id'],
+                'executor_id' => auth()->id(),
                 'duration_hours' => $data['duration_hours'],
                 'solution' => trim($data['solution']),
                 'closed_at' => now(),
                 'closed_by_id' => $request->user()->id,
             ]);
+
+            Incident::query()
+                ->where('maintenance_ticket_id', $lockedTicket->getKey())
+                ->where('status', 'OPEN')
+                ->update(['status' => 'RESOLVED']);
         });
 
         return response()->json($ticket->fresh(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts']));

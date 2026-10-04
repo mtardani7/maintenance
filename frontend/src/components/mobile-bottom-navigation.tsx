@@ -13,6 +13,15 @@ export function MobileBottomNavigation() {
   const [scanOpen, setScanOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const user = useAuthUser();
+  const isOperator = user?.role === 'operator';
+  const isMaintenance = user?.role === 'technician';
+  const secondaryHref = isOperator ? '/incidents' : isMaintenance ? '/tickets' : '/incidents';
+  const secondaryLabel = isOperator ? 'Insiden' : isMaintenance ? 'Tiket' : 'Riwayat';
+  const secondaryActive = isMaintenance
+    ? pathname.startsWith('/tickets')
+    : isOperator
+      ? pathname.startsWith('/incidents')
+      : pathname.startsWith('/incidents') || pathname.startsWith('/tickets');
 
   function openManualReport() {
     setChoiceOpen(false);
@@ -29,7 +38,7 @@ export function MobileBottomNavigation() {
   return <>
     <nav className="mobile-bottom-nav" aria-label="Navigasi mobile">
       <Link className={`mobile-bottom-nav__item ${pathname === '/dashboard' ? 'is-active' : ''}`} href="/dashboard"><House aria-hidden="true" /><span>Beranda</span></Link>
-      <Link className={`mobile-bottom-nav__item ${pathname.startsWith('/incidents') || pathname.startsWith('/tickets') ? 'is-active' : ''}`} href="/incidents"><ClipboardList aria-hidden="true" /><span>Riwayat</span></Link>
+      <Link className={`mobile-bottom-nav__item ${secondaryActive ? 'is-active' : ''}`} href={secondaryHref}><ClipboardList aria-hidden="true" /><span>{secondaryLabel}</span></Link>
       <button className="mobile-bottom-nav__item mobile-bottom-nav__create" type="button" onClick={() => { setChoiceOpen(true); setScanOpen(false); }} aria-label="Buat Laporan"><span className="mobile-bottom-nav__plus"><Plus aria-hidden="true" /></span><span>Lapor</span></button>
       <Link className={`mobile-bottom-nav__item ${pathname.startsWith('/notifications') ? 'is-active' : ''}`} href="/notifications"><Bell aria-hidden="true" /><span>Notifikasi</span></Link>
       <button className={`mobile-bottom-nav__item ${accountOpen ? 'is-active' : ''}`} type="button" onClick={() => void openAccount()}><UserRound aria-hidden="true" /><span>Akun</span></button>

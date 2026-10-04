@@ -83,8 +83,11 @@ export async function deactivatePlant(id: Plant['id']) {
 }
 
 export async function getIncidents(): Promise<Incident[]> {
-  const response = await apiRequest<{ data: Incident[] }>('/incidents?per_page=100');
-  return response.data;
+  const response = await apiRequest<{ data: Array<Incident & { ticket_number?: string }> }>('/incidents?per_page=100');
+  return response.data.map((incident) => ({
+    ...incident,
+    ticketNumber: incident.ticket_number,
+  }));
 }
 
 export async function getQaDashboard(filters: Record<string, string | number | undefined> = {}): Promise<QaDashboard> {

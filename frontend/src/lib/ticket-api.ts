@@ -113,8 +113,8 @@ function normalizeTicket(
     correctiveActionPlan: (ticket.correctiveActionPlan ?? ticket.corrective_action_plan) as string | undefined,
     targetAt: (ticket.targetAt ?? ticket.target_at) as string | undefined,
     actionBy: ticket.actionBy ?? ticket.action_by as Ticket["actionBy"],
-    closedAt: (ticket.closedAt ?? ticket.closed_at) as string | undefined,
-    closedBy: ticket.closedBy ?? ticket.closed_by as Ticket["closedBy"],
+    closed_at: ticket.closed_at as string | undefined,
+    closed_by: ticket.closed_by as Ticket["closed_by"],
     verificationChecklist: (ticket.verificationChecklist ?? ticket.verification_checklist) as VerificationChecklist | undefined,
     spareParts: ((ticket.spareParts ?? ticket.spare_parts) as Array<Record<string, unknown>> | undefined ?? []).map((part) => ({
       id: (part.id as number | string | undefined) ?? "-",
@@ -176,7 +176,6 @@ export function performTicketAction(
     action,
     reason: input.reason,
     action_taken: input.actionTaken,
-    executor_id: input.executorId,
     ...(durationHours ? { duration_hours: durationHours } : {}),
     ...(solution?.trim() ? { solution: solution.trim() } : {}),
   };

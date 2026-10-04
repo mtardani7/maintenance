@@ -14,8 +14,10 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
-Route::middleware('auth:sanctum')->post('/admin/users', [AdminUserController::class, 'store']);
 Route::middleware('auth:sanctum')->group(function (): void {
+	Route::get('/admin/users', [AdminUserController::class, 'index']);
+	Route::post('/admin/users', [AdminUserController::class, 'store']);
+	Route::put('/admin/users/{user}', [AdminUserController::class, 'update']);
 	Route::get('/machines', [MachineController::class, 'index']);
 	Route::apiResource('plants', PlantController::class)->except(['show']);
 	Route::get('/qa-dashboard', [QaMachineController::class, 'dashboard']);

@@ -12,9 +12,21 @@ use Illuminate\Validation\Rule;
 
 class IncidentController extends Controller
 {
+    private function ensureOwnerOrAdmin(Request $request, Incident $incident): void
+    {
+        $user = $request->user();
+        abort_unless(
+            $user?->role === 'admin' || (string) $incident->reported_by === (string) $user?->id,
+            403,
+            'You are not authorized to access this incident.',
+        );
+    }
+
     public function index(Request $request)
     {
         $incidents = Incident::query()
+            ->with('maintenanceTicket')
+            ->when($request->user()?->role !== 'admin', fn ($query) => $query->where('reported_by', $request->user()->id))
             ->when($request->filled('plant_id'), fn ($query) => $query->where('plant_id', $request->integer('plant_id')))
             ->when($request->filled('machine_id'), fn ($query) => $query->where('machine_id', $request->integer('machine_id')))
             ->latest()
@@ -53,22 +65,27 @@ class IncidentController extends Controller
                     'source' => 'OPERATOR',
                     'reported_by' => $incident->reported_by,
                 ]);
-                $incident->setAttribute('ticket_number', $ticket->ticket_number);
+                $incident->maintenanceTicket()->associate($ticket);
+                $incident->save();
             }
 
             return $incident;
         });
 
-        return response()->json(new IncidentResource($incident), 201);
+        return response()->json(new IncidentResource($incident->load('maintenanceTicket')), 201);
     }
 
-    public function show(Incident $incident): IncidentResource
+    public function show(Request $request, Incident $incident): IncidentResource
     {
-        return new IncidentResource($incident);
+        $this->ensureOwnerOrAdmin($request, $incident);
+
+        return new IncidentResource($incident->load('maintenanceTicket'));
     }
 
     public function update(Request $request, Incident $incident): IncidentResource
     {
+        $this->ensureOwnerOrAdmin($request, $incident);
+
         $data = $request->validate([
             'plant_id' => ['sometimes', 'integer'],
             'machine_id' => ['sometimes', 'integer'],
@@ -80,11 +97,13 @@ class IncidentController extends Controller
         ]);
         $incident->update($data);
 
-        return new IncidentResource($incident->fresh());
+        return new IncidentResource($incident->fresh('maintenanceTicket'));
     }
 
-    public function destroy(Incident $incident): JsonResponse
+    public function destroy(Request $request, Incident $incident): JsonResponse
     {
+        $this->ensureOwnerOrAdmin($request, $incident);
+
         $incident->delete();
         return response()->json(null, 204);
     }

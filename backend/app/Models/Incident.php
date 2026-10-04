@@ -16,4 +16,9 @@ class Incident extends Model
     {
         return $this->belongsTo(User::class, 'reported_by');
     }
+
+    public function maintenanceTicket(): BelongsTo
+    {
+        return $this->belongsTo(MaintenanceTicket::class, 'maintenance_ticket_id');
+    }
 }

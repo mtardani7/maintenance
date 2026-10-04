@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, CircleAlert, ClipboardCheck, Cog, Factory, Plus, RefreshCw, Radio, RotateCcw, Search, Settings2, Volume2, Wrench, X } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, Check, CircleAlert, CircleCheck, ClipboardCheck, Cog, Factory, Plus, RefreshCw, Radio, RotateCcw, Search, Settings2, Volume2, Wrench, X } from 'lucide-react';
 import { createIncident, getIncidents, getMachines, getPlantOptions, type PlantOption } from '@/lib/maintenance-api';
 import type { Incident, Machine } from '@/lib/maintenance-types';
 import { DataPagination, EmptyState, ErrorState, MaintenanceTable, PaginationSkeleton, Skeleton, TableSkeleton } from './ui';
@@ -15,7 +16,8 @@ const problemTypes = [
 ] as const;
 
 function incidentStatusLabel(status?: string) {
-  if (status === 'OPEN' || status === 'RESOLVED') return status;
+  if (status === 'RESOLVED') return 'Selesai';
+  if (status === 'OPEN') return status;
   return status ?? 'Tidak diketahui';
 }
 
@@ -38,9 +40,8 @@ export function IncidentReport() {
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [successOpen, setSuccessOpen] = useState(false);
   const [successTicketNumber, setSuccessTicketNumber] = useState('');
-  const [ticketNumbers, setTicketNumbers] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
@@ -65,6 +66,21 @@ export function IncidentReport() {
     } finally {
       setHistoryLoading(false);
     }
+  }
+
+  function acknowledgeSuccess() {
+    setSuccessOpen(false);
+    setSuccessTicketNumber('');
+    setReportOpen(false);
+    setPlantId('');
+    setMachineId('');
+    setProblemType('');
+    setDescription('');
+    setResolution('');
+    setActionTaken('');
+    setResult('');
+    setTouched(false);
+    void refreshHistory();
   }
 
   useEffect(() => {
@@ -118,7 +134,6 @@ export function IncidentReport() {
   const hasActiveHistoryFilters = Boolean(historySearchInput.trim() || historyPlant || historyMachine || historyStatus || historyProblemType || historySort !== 'newest');
   const totalHistoryPages = Math.max(1, Math.ceil(filteredIncidents.length / historyPageSize));
   const visibleIncidents = filteredIncidents.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
-
   function validate() {
     if (!plantId) return 'Pilih plant terlebih dahulu.';
     if (!machineId) return 'Pilih mesin terlebih dahulu.';
@@ -160,17 +175,15 @@ export function IncidentReport() {
       if (resolution === 'resolved') {
         await createIncident({ plantId, machineId, problemType, description: description.trim(), actionTaken: actionTaken.trim(), result: result.trim(), status: 'RESOLVED' });
         setSuccessTicketNumber('');
-        setSuccess('Catatan insiden berhasil dibuat. Tidak ada tiket pemeliharaan yang dibuka.');
+        setSuccessOpen(true);
         setReportOpen(false);
-        await refreshHistory();
       } else {
         const createdIncident = await createIncident({ plantId, machineId, problemType, description: description.trim(), status: 'OPEN' });
         const ticketNumber = createdIncident.ticketNumber;
         if (!ticketNumber) throw new Error('Ticket berhasil dibuat, tetapi nomor ticket tidak tersedia dari API.');
-        setTicketNumbers((current) => ({ ...current, [String(createdIncident.id)]: ticketNumber }));
         setSuccessTicketNumber(ticketNumber);
-        setSuccess(`Tiket ${ticketNumber} berhasil dibuat dan sudah diteruskan ke Maintenance.`);
-        await refreshHistory();
+        setSuccessOpen(true);
+        setReportOpen(false);
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Laporan tidak dapat disimpan. Periksa koneksi API lalu coba lagi.');
@@ -184,8 +197,7 @@ export function IncidentReport() {
   const selectedMachine = machines.find((machine) => String(machine.id) === machineId);
 
   return <>
-  {success && !successTicketNumber && <div className="success-panel incident-success"><span className="success-mark">OK</span><div><strong>{success}</strong><p>Laporan tersimpan dan riwayat sudah diperbarui.</p></div><button className="icon-button" type="button" onClick={() => setSuccess('')} aria-label="Tutup pesan">×</button></div>}
-  {successTicketNumber && <div className="incident-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="ticket-success-title"><section className="incident-success-modal"><span className="success-mark">OK</span><h2 id="ticket-success-title">Tiket berhasil dibuat</h2><p>Tiket {successTicketNumber} berhasil diteruskan ke Maintenance.</p><div className="ticket-success-number"><span>Nomor tiket</span><strong>{successTicketNumber}</strong></div><button className="primary-button" type="button" onClick={() => { setSuccessTicketNumber(''); setSuccess(''); setReportOpen(false); setPlantId(''); setMachineId(''); setProblemType(''); setDescription(''); setResolution(''); setActionTaken(''); setResult(''); setTouched(false); }}>OK</button></section></div>}
+  {successOpen && <div className="incident-modal-backdrop incident-success-backdrop" role="presentation"><section className="incident-success-modal" role="alertdialog" aria-modal="true" aria-labelledby="incident-success-title"><CircleCheck className="incident-success-icon" aria-hidden="true" /><h2 id="incident-success-title">Laporan Berhasil Dibuat</h2><p>Laporan insiden berhasil dibuat.</p>{successTicketNumber ? <><p>Tiket Maintenance berhasil dibuat.</p><div className="ticket-success-number"><span>Nomor Tiket Maintenance</span><strong>{successTicketNumber}</strong></div></> : <p>Tidak ada tiket maintenance yang dibuat.</p>}<button className="primary-button" type="button" onClick={acknowledgeSuccess}>OK</button></section></div>}
   {!plantsLoading && plants.length === 0 && !error && <EmptyState title="Tidak ada Plant tersedia" description="Plant belum tersedia. Riwayat insiden tetap dapat ditinjau." />}
   {reportOpen && <div className="incident-modal-backdrop incident-form-backdrop" role="dialog" aria-modal="true" aria-labelledby="incident-form-title"><section className="incident-form-modal"><div className="incident-form-modal__header"><div><p className="eyebrow">Laporkan masalah pada mesin.</p><h2 id="incident-form-title">Buat Laporan Insiden</h2></div><button className="icon-button" type="button" onClick={() => setReportOpen(false)} aria-label="Tutup form insiden"><X aria-hidden="true" /></button></div><div className="incident-form-modal__body"><div className="report-layout">
     <div className="report-main">
@@ -232,7 +244,7 @@ export function IncidentReport() {
     </div>
     {historyError ? <ErrorState title="Data tidak dapat dimuat" description="Coba lagi beberapa saat." onRetry={() => void refreshHistory()} /> : historyLoading ? <><PaginationSkeleton className="ticket-pagination ticket-pagination-skeleton incident-pagination maintenance-pagination-skeleton" /><TableSkeleton className="incident-table-wrap" tableClassName="incident-table" headers={["Tanggal", "Masalah", "Plant / Mesin", "Status", "Maintenance Ticket"]} rows={6} /></> : visibleIncidents.length === 0 ? <div className="incident-empty-state"><ClipboardCheck aria-hidden="true" /><strong>Belum ada laporan insiden</strong><p>{historySearch || historyPlant || historyMachine || historyStatus || historyProblemType ? 'Belum ada laporan yang sesuai dengan filter.' : 'Belum ada laporan yang tersimpan.'}</p>{(historySearch || historyPlant || historyMachine || historyStatus || historyProblemType) && <button className="secondary-action" type="button" onClick={resetHistoryFilters}>Reset Filter</button>}</div> : <>
       <DataPagination currentPage={historyPage} totalPages={totalHistoryPages} onPageChange={setHistoryPage} pageSize={historyPageSize} onPageSizeChange={changeHistoryPageSize} summary={`Menampilkan ${(historyPage - 1) * historyPageSize + 1}–${Math.min(historyPage * historyPageSize, filteredIncidents.length)} dari ${filteredIncidents.length} insiden`} mobileSummary={`${(historyPage - 1) * historyPageSize + 1}–${Math.min(historyPage * historyPageSize, filteredIncidents.length)} dari ${filteredIncidents.length}`} />
-      <MaintenanceTable containerClassName="incident-table-wrap" className="incident-table" label="Riwayat insiden"><thead><tr><th>Tanggal</th><th>Masalah</th><th>Plant / Mesin</th><th>Status</th><th>Nomor Tiket</th></tr></thead><tbody>{visibleIncidents.map((incident) => { const machine = machineDirectory.find((item) => String(item.id) === String(incident.machineId)); const ticketNumber = ticketNumbers[String(incident.id)] || incident.ticketNumber; return <tr className={!ticketNumber ? 'incident-table__row--no-ticket' : undefined} key={incident.id} onClick={() => setSelectedIncident(incident)}><td>{incident.createdAt ? new Date(incident.createdAt).toLocaleString('id-ID') : '-'}</td><td><strong>{problemTypes.find((type) => type.value === incident.problemType)?.label ?? incident.problemType}</strong><small>{incident.description || 'Tidak ada deskripsi tambahan.'}</small></td><td><strong>{plants.find((plant) => String(plant.id) === String(incident.plantId))?.name ?? `Plant ${incident.plantId ?? '—'}`}</strong><small>{machine?.name ?? `Mesin ${incident.machineId ?? '—'}`}</small></td><td><b className={`incident-status-badge incident-status-badge--${incident.status?.toLowerCase() ?? 'unknown'}`}>{incidentStatusLabel(incident.status)}</b></td><td>{ticketNumber ? <span className="incident-ticket-badge">{ticketNumber}</span> : <span className="incident-ticket-missing">—</span>}</td></tr>; })}</tbody></MaintenanceTable>
+      <MaintenanceTable containerClassName="incident-table-wrap" className="incident-table" label="Riwayat insiden"><thead><tr><th>Tanggal</th><th>Masalah</th><th>Plant / Mesin</th><th>Status</th><th>Nomor Tiket</th></tr></thead><tbody>{visibleIncidents.map((incident) => { const machine = machineDirectory.find((item) => String(item.id) === String(incident.machineId)); const ticketNumber = incident.ticketNumber; return <tr className={!ticketNumber ? 'incident-table__row--no-ticket' : undefined} key={incident.id} onClick={() => setSelectedIncident(incident)}><td>{incident.createdAt ? new Date(incident.createdAt).toLocaleString('id-ID') : '-'}</td><td><strong>{problemTypes.find((type) => type.value === incident.problemType)?.label ?? incident.problemType}</strong><small>{incident.description || 'Tidak ada deskripsi tambahan.'}</small></td><td><strong>{plants.find((plant) => String(plant.id) === String(incident.plantId))?.name ?? `Plant ${incident.plantId ?? '—'}`}</strong><small>{machine?.name ?? `Mesin ${incident.machineId ?? '—'}`}</small></td><td><b className={`incident-status-badge incident-status-badge--${incident.status?.toLowerCase() ?? 'unknown'}`}>{incidentStatusLabel(incident.status)}</b></td><td>{ticketNumber ? <Link className="incident-ticket-badge" href={`/tickets/${encodeURIComponent(ticketNumber)}`} title={ticketNumber} onClick={(event) => event.stopPropagation()}>{ticketNumber}</Link> : <span className="incident-ticket-missing">—</span>}</td></tr>; })}</tbody></MaintenanceTable>
     </>}    {selectedIncident && <div className="incident-modal-backdrop" role="presentation" onClick={() => setSelectedIncident(null)}><section className="incident-modal" role="dialog" aria-modal="true" aria-label="Detail insiden" onClick={(event) => event.stopPropagation()}><div className="incident-detail-heading"><div><p className="eyebrow">Detail insiden #{selectedIncident.id}</p><h3>{problemTypes.find((type) => type.value === selectedIncident.problemType)?.label ?? selectedIncident.problemType}</h3></div><button className="icon-button" type="button" onClick={() => setSelectedIncident(null)} aria-label="Tutup detail insiden">×</button></div><dl className="incident-detail-grid"><div><dt>Plant</dt><dd>{plants.find((plant) => String(plant.id) === String(selectedIncident.plantId))?.name ?? `Plant #${selectedIncident.plantId ?? '-'}`}</dd></div><div><dt>Mesin</dt><dd>{machineDirectory.find((machine) => String(machine.id) === String(selectedIncident.machineId))?.name ?? `Mesin #${selectedIncident.machineId ?? '-'}`}</dd></div><div><dt>Waktu</dt><dd>{selectedIncident.createdAt ? new Date(selectedIncident.createdAt).toLocaleString('id-ID') : '-'}</dd></div><div><dt>Status</dt><dd>{selectedIncident.status === 'RESOLVED' ? 'Selesai' : selectedIncident.status ?? 'Tidak diketahui'}</dd></div><div className="incident-detail-wide"><dt>Deskripsi</dt><dd>{selectedIncident.description || '-'}</dd></div><div><dt>Tindakan</dt><dd>{selectedIncident.actionTaken || '-'}</dd></div><div><dt>Hasil</dt><dd>{selectedIncident.result || '-'}</dd></div></dl></section></div>}
   </section>
   </>;

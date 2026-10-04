@@ -21,6 +21,7 @@ class MaintenanceTicket extends Model
         'target_at',
         'action_by_id',
         'verification_checklist',
+        'closed_at',
         'closed_by_id',
     ];
 
