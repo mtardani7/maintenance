@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, Check, CircleAlert, CircleCheck, ClipboardCheck, Cog, Factory, Plus, RefreshCw, Radio, RotateCcw, Search, Settings2, Volume2, Wrench, X } from 'lucide-react';
 import { createIncident, getIncidents, getMachines, getPlantOptions, type PlantOption } from '@/lib/maintenance-api';
-import type { Incident, Machine } from '@/lib/maintenance-types';
+import type { Incident, Machine, ResolvedMachineQr } from '@/lib/maintenance-types';
 import { DataPagination, EmptyState, ErrorState, MaintenanceTable, PaginationSkeleton, Skeleton, TableSkeleton } from './ui';
 
 const problemTypes = [
@@ -22,6 +22,7 @@ function incidentStatusLabel(status?: string) {
 }
 
 type Resolution = 'resolved' | 'cannot-resolve' | '';
+type QrPrefill = ResolvedMachineQr & { payload: string };
 
 export function IncidentReport() {
   const [plants, setPlants] = useState<PlantOption[]>([]);
@@ -46,6 +47,8 @@ export function IncidentReport() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
+  const [qrPrefill, setQrPrefill] = useState<QrPrefill | null>(null);
+  const submitLock = useRef(false);
   const [historySearchInput, setHistorySearchInput] = useState('');
   const [historySearch, setHistorySearch] = useState('');
   const [historyPlant, setHistoryPlant] = useState('');
@@ -79,6 +82,7 @@ export function IncidentReport() {
     setResolution('');
     setActionTaken('');
     setResult('');
+    setQrPrefill(null);
     setTouched(false);
     void refreshHistory();
   }
@@ -94,11 +98,33 @@ export function IncidentReport() {
   useEffect(() => { void refreshHistory(); }, []);
 
   useEffect(() => {
-    const openReport = () => setReportOpen(true);
+    const openReport = (event: Event) => {
+      const detail = (event as CustomEvent<QrPrefill | undefined>).detail;
+      setReportOpen(true);
+      setError('');
+      setTouched(false);
+      if (detail) {
+        setQrPrefill(detail);
+        setPlantId(String(detail.plant.id));
+        setMachineId(String(detail.machine.id));
+        setPlants((current) => current.some((plant) => String(plant.id) === String(detail.plant.id)) ? current : [...current, detail.plant as PlantOption]);
+      } else {
+        setQrPrefill(null);
+        setPlantId('');
+        setMachineId('');
+      }
+    };
     window.addEventListener('maintenance:open-incident-report', openReport);
     if (window.sessionStorage.getItem('maintenance:open-incident-report') === '1') {
       window.sessionStorage.removeItem('maintenance:open-incident-report');
-      setReportOpen(true);
+      const stored = window.sessionStorage.getItem('maintenance:prefill-incident-qr');
+      window.sessionStorage.removeItem('maintenance:prefill-incident-qr');
+      try {
+        const detail = stored ? JSON.parse(stored) as QrPrefill : undefined;
+        openReport(new CustomEvent('maintenance:open-incident-report', { detail }));
+      } catch {
+        openReport(new Event('maintenance:open-incident-report'));
+      }
     }
     return () => window.removeEventListener('maintenance:open-incident-report', openReport);
   }, []);
@@ -111,6 +137,13 @@ export function IncidentReport() {
   useEffect(() => { setHistoryPage(1); }, [historyPlant, historyMachine, historyStatus, historyProblemType, historySort]);
 
   useEffect(() => {
+    if (qrPrefill) {
+      const machine: Machine = { ...qrPrefill.machine, section: qrPrefill.machine.section ?? undefined, plant_id: qrPrefill.plant.id, is_active: true };
+      setMachines([machine]);
+      setMachineId(String(machine.id));
+      setMachinesLoading(false);
+      return;
+    }
     setMachineId('');
     setMachines([]);
     if (!plantId) return;
@@ -120,9 +153,9 @@ export function IncidentReport() {
       .then(setMachines)
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Tidak dapat memuat mesin pada plant ini.'))
       .finally(() => setMachinesLoading(false));
-  }, [plantId]);
+  }, [plantId, qrPrefill]);
 
-  const selectedPlant = useMemo(() => plants.find((plant) => String(plant.id) === plantId), [plantId, plants]);
+  const selectedPlant = useMemo(() => qrPrefill?.plant ?? plants.find((plant) => String(plant.id) === plantId), [plantId, plants, qrPrefill]);
   const filteredIncidents = useMemo(() => {
     const search = historySearch.toLowerCase();
     return incidents.filter((incident) => {
@@ -163,6 +196,7 @@ export function IncidentReport() {
   }
 
   async function submitReport() {
+    if (submitLock.current) return;
     setTouched(true);
     const validationError = validate();
     if (validationError) {
@@ -170,15 +204,16 @@ export function IncidentReport() {
       return;
     }
     setError('');
+    submitLock.current = true;
     setSubmitting(true);
     try {
       if (resolution === 'resolved') {
-        await createIncident({ plantId, machineId, problemType, description: description.trim(), actionTaken: actionTaken.trim(), result: result.trim(), status: 'RESOLVED' });
+        await createIncident({ plantId, machineId, problemType, description: description.trim(), actionTaken: actionTaken.trim(), result: result.trim(), status: 'RESOLVED', qrPayload: qrPrefill?.payload });
         setSuccessTicketNumber('');
         setSuccessOpen(true);
         setReportOpen(false);
       } else {
-        const createdIncident = await createIncident({ plantId, machineId, problemType, description: description.trim(), status: 'OPEN' });
+        const createdIncident = await createIncident({ plantId, machineId, problemType, description: description.trim(), status: 'OPEN', qrPayload: qrPrefill?.payload });
         const ticketNumber = createdIncident.ticketNumber;
         if (!ticketNumber) throw new Error('Ticket berhasil dibuat, tetapi nomor ticket tidak tersedia dari API.');
         setSuccessTicketNumber(ticketNumber);
@@ -188,13 +223,16 @@ export function IncidentReport() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Laporan tidak dapat disimpan. Periksa koneksi API lalu coba lagi.');
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   }
 
   const validationError = touched ? validate() : '';
   const descriptionError = touched && problemType === 'Other' && description.trim().length < 10 ? 'Minimal 10 karakter untuk jenis masalah Lainnya.' : '';
-  const selectedMachine = machines.find((machine) => String(machine.id) === machineId);
+  const selectedMachine: Machine | undefined = qrPrefill
+    ? { ...qrPrefill.machine, section: qrPrefill.machine.section ?? undefined, plant_id: qrPrefill.plant.id, is_active: true }
+    : machines.find((machine) => String(machine.id) === machineId);
 
   return <>
   {successOpen && <div className="incident-modal-backdrop incident-success-backdrop" role="presentation"><section className="incident-success-modal" role="alertdialog" aria-modal="true" aria-labelledby="incident-success-title"><CircleCheck className="incident-success-icon" aria-hidden="true" /><h2 id="incident-success-title">Laporan Berhasil Dibuat</h2><p>Laporan insiden berhasil dibuat.</p>{successTicketNumber ? <><p>Tiket Maintenance berhasil dibuat.</p><div className="ticket-success-number"><span>Nomor Tiket Maintenance</span><strong>{successTicketNumber}</strong></div></> : <p>Tidak ada tiket maintenance yang dibuat.</p>}<button className="primary-button" type="button" onClick={acknowledgeSuccess}>OK</button></section></div>}
@@ -205,10 +243,10 @@ export function IncidentReport() {
       <section className="form-card incident-form-section">
         <div className="incident-section-heading"><span className="incident-section-icon"><Factory aria-hidden="true" /></span><div><p className="eyebrow">Langkah 1</p><h2>Pilih lokasi dan mesin</h2><p>Pilih plant dan mesin yang mengalami masalah.</p></div></div>
         <div className="form-grid-two incident-location-grid">
-          <label className="form-field"><span className="incident-field-label"><Factory aria-hidden="true" />Plant</span>{plantsLoading ? <Skeleton className="incident-select-skeleton" /> : <select value={plantId} onChange={(event) => setPlantId(event.target.value)} disabled={submitting}><option value="">Pilih plant</option>{plants.map((plant) => <option key={plant.id} value={plant.id}>{plant.code} - {plant.name}</option>)}</select>}</label>
-          <label className="form-field"><span className="incident-field-label"><Cog aria-hidden="true" />Mesin</span>{machinesLoading ? <Skeleton className="incident-select-skeleton" /> : <select value={machineId} onChange={(event) => setMachineId(event.target.value)} disabled={!plantId || submitting}><option value="">{!plantId ? 'Pilih plant terlebih dahulu' : 'Pilih mesin'}</option>{machines.map((machine) => <option key={machine.id} value={machine.id}>{machine.code} - {machine.name}</option>)}</select>}</label>
+          <label className="form-field"><span className="incident-field-label"><Factory aria-hidden="true" />Plant</span>{qrPrefill ? <input value={`${qrPrefill.plant.code} - ${qrPrefill.plant.name}`} readOnly aria-readonly="true" /> : plantsLoading ? <Skeleton className="incident-select-skeleton" /> : <select value={plantId} onChange={(event) => setPlantId(event.target.value)} disabled={submitting}><option value="">Pilih plant</option>{plants.map((plant) => <option key={plant.id} value={plant.id}>{plant.code} - {plant.name}</option>)}</select>}</label>
+          <label className="form-field"><span className="incident-field-label"><Cog aria-hidden="true" />Mesin</span>{qrPrefill ? <input value={`${qrPrefill.machine.code} - ${qrPrefill.machine.name}`} readOnly aria-readonly="true" /> : machinesLoading ? <Skeleton className="incident-select-skeleton" /> : <select value={machineId} onChange={(event) => setMachineId(event.target.value)} disabled={!plantId || submitting}><option value="">{!plantId ? 'Pilih plant terlebih dahulu' : 'Pilih mesin'}</option>{machines.map((machine) => <option key={machine.id} value={machine.id}>{machine.code} - {machine.name}</option>)}</select>}</label>
         </div>
-        {selectedPlant && <p className="form-helper">Menampilkan {machines.length} mesin pada {selectedPlant.name}.</p>}
+        {selectedPlant && <p className="form-helper">{qrPrefill ? 'Mesin dan Plant ditentukan dari QR Code.' : `Menampilkan ${machines.length} mesin pada ${selectedPlant.name}.`}</p>}
         {plantId && !machinesLoading && !machines.length && <p className="form-inline-error">Tidak ada mesin aktif pada plant ini.</p>}
       </section>
       <section className="form-card incident-form-section">

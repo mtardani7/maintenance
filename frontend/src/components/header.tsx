@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Bell, ChevronDown, Home, Moon, UserCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { getUnreadNotificationCount, markNotificationRead, relativeNotificationTime } from '@/lib/notification-api';
+import { markNotificationRead, relativeNotificationTime } from '@/lib/notification-api';
 import { logout } from '@/lib/auth';
 import { getNotifications } from '@/lib/notification-api';
 import type { AppNotification } from '@/lib/notification-types';

@@ -1,5 +1,5 @@
 import { apiRequest, ApiConfigurationError } from './api';
-import type { CreateIncidentInput, CreateTicketInput, Incident, Machine, MachineDetail, MachineFilters, MachinePage, MaintenanceTicket, MachineQADefect, Plant } from './maintenance-types';
+import type { CreateIncidentInput, CreateTicketInput, Incident, Machine, MachineDetail, MachineFilters, MachinePage, MaintenanceTicket, MachineQADefect, Plant, ResolvedMachineQr } from './maintenance-types';
 import { getMachineAnalytics } from './operations-api';
 
 export type PlantOption = { id: number; code: string; name: string };
@@ -151,9 +151,14 @@ export async function createIncident(input: CreateIncidentInput) {
       action_taken: input.actionTaken,
       result: input.result,
       status: input.status,
+      qr_payload: input.qrPayload,
     }),
   });
   return { ...response, ticketNumber: response.ticketNumber ?? response.ticket_number };
+}
+
+export function resolveMachineQr(payload: string) {
+  return apiRequest<ResolvedMachineQr>('/machines/resolve-qr', { method: 'POST', body: JSON.stringify({ payload }) });
 }
 
 export async function createTicket(input: CreateTicketInput) {

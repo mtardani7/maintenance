@@ -6,6 +6,8 @@ use App\Models\Incident;
 use App\Events\TicketCreated;
 use App\Http\Resources\IncidentResource;
 use App\Services\MaintenanceTicketCreator;
+use App\Services\MachineQrPayload;
+use App\Models\Machine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -51,7 +53,20 @@ class IncidentController extends Controller
             'action_taken' => ['nullable', 'required_if:status,RESOLVED', 'string', 'min:5'],
             'result' => ['nullable', 'required_if:status,RESOLVED', 'string', 'min:5'],
             'status' => ['required', 'in:OPEN,RESOLVED'],
+            'qr_payload' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);
+        if (! empty($data['qr_payload'])) {
+            $identifier = MachineQrPayload::parse($data['qr_payload']);
+            abort_unless($identifier, 422, 'QR Mesin tidak valid.');
+            $machine = Machine::query()->where('code', $identifier['machine_code'])
+                ->whereHas('plant', fn ($query) => $query->where('code', $identifier['plant_code']))
+                ->first();
+            abort_unless($machine, 404, 'Mesin tidak ditemukan.');
+            abort_if(! $machine->is_active, 422, 'Mesin sedang tidak aktif dan tidak dapat digunakan untuk laporan.');
+            $data['plant_id'] = $machine->plant_id;
+            $data['machine_id'] = $machine->id;
+        }
+        unset($data['qr_payload']);
         $data['reported_by'] = $request->user()->id;
 
         $incident = DB::transaction(function () use ($data, $ticketCreator): Incident {

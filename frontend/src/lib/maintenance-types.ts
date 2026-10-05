@@ -23,7 +23,7 @@ export type Machine = {
   updated_by?: number | string;
   created_at?: string;
   updated_at?: string;
-  plant?: string;
+  plant?: string | { id: number | string; code: string; name: string } | null;
   line?: string;
   location?: string;
 };
@@ -81,6 +81,12 @@ export type CreateIncidentInput = {
   actionTaken?: string;
   result?: string;
   status: 'OPEN' | 'RESOLVED';
+  qrPayload?: string;
+};
+
+export type ResolvedMachineQr = {
+  machine: { id: number | string; code: string; name: string; section?: string | null };
+  plant: { id: number | string; code: string; name: string };
 };
 
 export type CreateTicketInput = {

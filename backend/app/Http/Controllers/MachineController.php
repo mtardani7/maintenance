@@ -8,9 +8,30 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Models\Incident;
 use App\Models\MaintenanceTicket;
+use App\Services\MachineQrPayload;
 
 class MachineController extends Controller
 {
+    public function resolveQr(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['payload' => ['required', 'string', 'max:255']]);
+        $identifier = MachineQrPayload::parse($validated['payload']);
+        if (! $identifier) return response()->json(['message' => 'QR Mesin tidak valid.'], 422);
+
+        $machine = Machine::query()->with('plant')
+            ->where('code', $identifier['machine_code'])
+            ->whereHas('plant', fn ($query) => $query->where('code', $identifier['plant_code']))
+            ->first();
+
+        if (! $machine) return response()->json(['message' => 'Mesin tidak ditemukan.'], 404);
+        if (! $machine->is_active) return response()->json(['message' => 'Mesin sedang tidak aktif dan tidak dapat digunakan untuk laporan.'], 422);
+
+        return response()->json([
+            'machine' => ['id' => $machine->id, 'code' => $machine->code, 'name' => $machine->name, 'section' => $machine->section],
+            'plant' => ['id' => $machine->plant->id, 'code' => $machine->plant->code, 'name' => $machine->plant->name],
+        ]);
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = Machine::query()->with('plant')->latest();

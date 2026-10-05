@@ -24,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 	Route::post('/admin/users', [AdminUserController::class, 'store']);
 	Route::put('/admin/users/{user}', [AdminUserController::class, 'update']);
 	Route::get('/machines', [MachineController::class, 'index']);
+	Route::post('/machines/resolve-qr', [MachineController::class, 'resolveQr']);
 	Route::apiResource('plants', PlantController::class)->except(['show']);
 	Route::get('/qa-dashboard', [QaMachineController::class, 'dashboard']);
 	Route::post('/machines', [MachineController::class, 'store']);
