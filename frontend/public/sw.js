@@ -6,8 +6,13 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'Maintenance Operations';
   const options = {
     body: payload.body || 'You have a new maintenance notification.',
+    icon: payload.icon || `${scopePath}/icon-192.svg`,
+    badge: payload.badge || `${scopePath}/icon-192.svg`,
     tag: payload.tag || `maintenance-${payload.id || Date.now()}`,
-    data: { url: payload.url || (payload.relatedTicketId ? `${scopePath}/tickets/${payload.relatedTicketId}` : `${scopePath}/notifications`) },
+    data: {
+      url: payload.url || (payload.relatedTicketId ? `${scopePath}/tickets/${payload.relatedTicketId}` : `${scopePath}/notifications`),
+      notificationId: payload.notificationId || payload.id,
+    },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -19,6 +24,9 @@ self.addEventListener('notificationclick', (event) => {
   const target = new URL(event.notification.data?.url || `${scopePath}/notifications`, self.location.origin).href;
   event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
     const existing = windows.find((window) => window.url.startsWith(self.location.origin));
+    if (existing && event.notification.data?.notificationId) {
+      return existing.focus().then(() => existing.postMessage({ type: 'maintenance:notification-click', notificationId: event.notification.data.notificationId, url: target }));
+    }
     if (existing) { existing.focus(); return existing.navigate(target); }
     return clients.openWindow(target);
   }));

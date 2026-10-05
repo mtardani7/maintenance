@@ -2,6 +2,11 @@
 
 namespace App\Providers;
 
+use App\Events\TicketClosed;
+use App\Events\TicketCreated;
+use App\Listeners\NotifyMaintenanceOfNewTicket;
+use App\Listeners\NotifyOperatorOfClosedTicket;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Event::listen(TicketCreated::class, NotifyMaintenanceOfNewTicket::class);
+        Event::listen(TicketClosed::class, NotifyOperatorOfClosedTicket::class);
     }
 }

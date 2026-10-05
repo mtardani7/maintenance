@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MaintenanceTicket;
 use App\Models\Incident;
 use App\Models\User;
+use App\Events\TicketClosed;
 use App\Services\MaintenanceTicketCreator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -118,6 +119,8 @@ class MaintenanceTicketController extends Controller
                 ->where('maintenance_ticket_id', $lockedTicket->getKey())
                 ->where('status', 'OPEN')
                 ->update(['status' => 'RESOLVED']);
+
+            event(new TicketClosed($lockedTicket->fresh(['machine', 'closedBy'])));
         });
 
         return response()->json($ticket->fresh(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts']));

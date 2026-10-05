@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Incident;
+use App\Events\TicketCreated;
 use App\Http\Resources\IncidentResource;
 use App\Services\MaintenanceTicketCreator;
 use Illuminate\Http\JsonResponse;
@@ -67,6 +68,7 @@ class IncidentController extends Controller
                 ]);
                 $incident->maintenanceTicket()->associate($ticket);
                 $incident->save();
+                event(new TicketCreated($ticket->load('machine'), $incident));
             }
 
             return $incident;
