@@ -14,6 +14,27 @@ export type QaDashboard = {
   defect_trend: Array<{ date: string; defect_qty: number }>;
 };
 
+export type MaintenanceDashboard = {
+  period_days: 7 | 30 | 90;
+  starts_at: string;
+  summary: { open_tickets: number; closed_today: number; overdue_tickets: number; incidents_today: number };
+  needs_attention: Array<{
+    ticket_number: string; problem_type: string; description: string; status: string; priority: string;
+    created_at: string; machine_code?: string | null; machine_name?: string | null; plant_code?: string | null; plant_name?: string | null;
+  }>;
+  trend_machines: Array<{
+    machine_id: number; machine_code: string; machine_name: string; plant_id: number | null; plant_code?: string | null;
+    plant_name?: string | null; incident_count: number; last_occurred_at: string;
+    problems: Array<{ problem_type: string; count: number; last_occurred_at: string }>;
+  }>;
+  repeated_problems: Array<{
+    machine_id: number; machine_code: string; machine_name: string; problem_type: string; count: number; last_occurred_at: string;
+  }>;
+  recent_activity: Array<{
+    id: number; problem_type: string; status: string; created_at: string; machine_code: string; machine_name: string; ticket_number?: string | null;
+  }>;
+};
+
 type Collection<T> = T[] | { data: T[]; meta?: { current_page?: number; last_page?: number; total?: number } };
 
 const paths = {
@@ -95,6 +116,12 @@ export async function getQaDashboard(filters: Record<string, string | number | u
   Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); });
   const suffix = query.toString();
   return apiRequest<QaDashboard>(`/qa-dashboard${suffix ? `?${suffix}` : ''}`);
+}
+
+export async function getMaintenanceDashboard(filters: { period_days: 7 | 30 | 90; plant_id?: string }): Promise<MaintenanceDashboard> {
+  const query = new URLSearchParams({ period_days: String(filters.period_days) });
+  if (filters.plant_id) query.set('plant_id', filters.plant_id);
+  return apiRequest<MaintenanceDashboard>(`/maintenance-dashboard?${query.toString()}`);
 }
 
 export async function getMachinePage(filters: MachineFilters = {}): Promise<MachinePage> {

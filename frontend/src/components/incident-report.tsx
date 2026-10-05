@@ -271,7 +271,7 @@ export function IncidentReport() {
     </div>
     <div className="incident-history-filters">
       <label className="incident-filter-search"><Search aria-hidden="true" /><input aria-label="Cari masalah atau mesin" value={historySearchInput} onChange={(event) => setHistorySearchInput(event.target.value)} placeholder="Cari masalah atau mesin..." /></label>
-      <label>Plant<select value={historyPlant} onChange={(event) => setHistoryPlant(event.target.value)}><option value="">Semua Plant</option>{plants.map((plant) => <option key={plant.id} value={plant.id}>{plant.code} — {plant.name}</option>)}</select></label>
+      <label>Plant<select value={historyPlant} onChange={(event) => { setHistoryPlant(event.target.value); setHistoryMachine(''); }}><option value="">Semua Plant</option>{plants.map((plant) => <option key={plant.id} value={plant.id}>{plant.code} — {plant.name}</option>)}</select></label>
       <label>Mesin<select value={historyMachine} onChange={(event) => setHistoryMachine(event.target.value)}><option value="">Semua mesin</option>{machineDirectory.filter((machine) => !historyPlant || String(machine.plant_id) === historyPlant).map((machine) => <option key={machine.id} value={machine.id}>{machine.code} — {machine.name}</option>)}</select></label>
       <label>Status<select value={historyStatus} onChange={(event) => setHistoryStatus(event.target.value)}><option value="">Semua status</option><option value="OPEN">Terbuka</option><option value="RESOLVED">Selesai</option></select></label>
       <details className={`incident-more-filters${historyProblemType || historySort !== 'newest' ? ' incident-more-filters--active' : ''}`}>

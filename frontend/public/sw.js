@@ -3,11 +3,11 @@ self.addEventListener('push', (event) => {
   try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data ? event.data.text() : '' }; }
 
   const scopePath = new URL(self.registration.scope).pathname.replace(/\/$/, '');
-  const title = payload.title || 'Maintenance Operations';
+  const title = payload.title || 'MIRA';
   const options = {
     body: payload.body || 'You have a new maintenance notification.',
-    icon: payload.icon || `${scopePath}/icon-192.svg`,
-    badge: payload.badge || `${scopePath}/icon-192.svg`,
+    icon: payload.icon || `${scopePath}/pwa-icon-192.png?v=2`,
+    badge: payload.badge || `${scopePath}/pwa-icon-192.png?v=2`,
     tag: payload.tag || `maintenance-${payload.id || Date.now()}`,
     data: {
       url: payload.url || (payload.relatedTicketId ? `${scopePath}/tickets/${payload.relatedTicketId}` : `${scopePath}/notifications`),

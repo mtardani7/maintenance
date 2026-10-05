@@ -39,7 +39,7 @@ export function Navigation() {
       <aside id="main-navigation" className={`sidebar ${mobileOpen ? 'sidebar--open' : ''} ${collapsed ? 'sidebar--collapsed' : ''}`}>
         <div className="brand-lockup">
           <img src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/qa-logo.png`} alt="Sistem QA" className="brand-mark size-9 object-contain" />
-          <div className="brand-copy"><strong>Maintenance System</strong></div>
+          <div className="brand-copy"><strong title="MIRA — Maintenance Improvement Report Analysis">MIRA</strong></div>
           <button className="sidebar-toggle" type="button" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? 'Tampilkan bilah sisi' : 'Sembunyikan bilah sisi'}>{collapsed ? <ChevronRight aria-hidden="true" /> : <ChevronLeft aria-hidden="true" />}</button>
           <button className="mobile-close" type="button" onClick={() => setMobileOpen(false)} aria-label="Tutup navigasi"><X aria-hidden="true" /></button>
         </div>
@@ -54,7 +54,6 @@ export function Navigation() {
             })}</div>;
           })}
         </nav>
-        <div className="sidebar-foot"><div className="account-card"><span className="account-avatar">{user?.name?.slice(0, 2).toUpperCase() || 'SP'}</span><div><strong>{user?.name || 'Pengguna'}</strong><small>{user?.role || 'Pengguna terautentikasi'}</small></div></div></div>
       </aside>
     </>
   );

@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, ChevronDown, Home, Moon, UserCircle } from 'lucide-react';
+import { AlertTriangle, Bell, ChevronDown, Home, UserCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { markNotificationRead, relativeNotificationTime } from '@/lib/notification-api';
@@ -10,6 +10,7 @@ import { logout } from '@/lib/auth';
 import { getNotifications } from '@/lib/notification-api';
 import type { AppNotification } from '@/lib/notification-types';
 import { useAuthUser } from './auth-boundary';
+import { ThemeSelector } from './theme-selector';
 
 export function Header() {
   const pathname = usePathname();
@@ -17,12 +18,42 @@ export function Header() {
   const [unread, setUnread] = useState(0);
   const user = useAuthUser();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [liveToast, setLiveToast] = useState<AppNotification | null>(null);
   const audioContext = useRef<AudioContext | null>(null);
   const toastTimer = useRef<number | null>(null);
+  const notificationMenuRef = useRef<HTMLDivElement>(null);
+  const cancelLogoutRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !notificationMenuRef.current?.contains(event.target)) setNotificationsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setNotificationsOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [notificationsOpen]);
+
+  useEffect(() => {
+    if (!logoutConfirmOpen) return;
+    cancelLogoutRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !signingOut) setLogoutConfirmOpen(false);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [logoutConfirmOpen, signingOut]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -62,8 +93,8 @@ export function Header() {
       const body = [item.ticketNumber, item.machine, description].filter(Boolean).join(' — ');
       const options: NotificationOptions = {
         body: body || item.body,
-        icon: `${basePath}/icon-192.svg`,
-        badge: `${basePath}/icon-192.svg`,
+        icon: `${basePath}/pwa-icon-192.png`,
+        badge: `${basePath}/pwa-icon-192.png`,
         tag: `maintenance-${item.id}`,
         data: { url, notificationId: item.id },
         ...(background ? {} : { silent: true }),
@@ -144,7 +175,11 @@ export function Header() {
   }, [user?.id]);
 
   const initials = user?.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase() ?? 'OP';
-  async function signOut() { try { await logout(); } finally { window.location.assign('/login'); } }
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try { await logout(); } finally { window.location.assign('/login'); }
+  }
   async function toggleNotifications() {
     const nextOpen = !notificationsOpen;
     setNotificationsOpen(nextOpen);
@@ -170,5 +205,5 @@ export function Header() {
     } catch { /* Leave the user in place if the read request fails. */ }
   }
   const liveToastTarget = liveToast?.url ?? (liveToast?.relatedTicketId ? `/tickets/${liveToast.relatedTicketId}` : '/notifications');
-  return <><header className="topbar"><div className="breadcrumb"><Home aria-hidden="true" /><strong>{currentPath}</strong></div><div className="topbar-actions"><div className="notification-menu"><button className="notification-indicator" type="button" onClick={toggleNotifications} aria-label={`${unread} notifikasi belum dibaca`} aria-expanded={notificationsOpen}><Bell aria-hidden="true" />{unread > 0 && <b>{unread > 99 ? '99+' : unread}</b>}</button>{notificationsOpen && <div className="notification-dropdown"><div className="notification-dropdown-header"><strong>Notifikasi</strong><span>{unread} belum dibaca</span></div>{notificationsLoading ? <p className="notification-empty">Memuat notifikasi...</p> : notifications.length === 0 ? <p className="notification-empty">Tidak ada notifikasi</p> : <div className="notification-dropdown-list">{notifications.slice(0, 5).map((item) => <Link href={item.url ?? (item.relatedTicketId ? `/tickets/${item.relatedTicketId}` : '/notifications')} key={item.id} onClick={(event) => void openNotification(event, item)} className={item.read ? '' : 'notification-item--unread'}><strong>{item.title}</strong>{item.ticketNumber && <span className="notification-ticket-number">{item.ticketNumber}</span>}<span>{item.machine ? `${item.machine}${item.problem ? ` · ${item.problem}` : ''}` : item.body}</span><small>{relativeNotificationTime(item.createdAt)}</small></Link>)}</div>}<Link className="notification-dropdown-footer" href="/notifications" onClick={() => setNotificationsOpen(false)}>Lihat semua notifikasi</Link></div>}</div><button className="theme-button" type="button" aria-label="Ganti tema"><Moon aria-hidden="true" /></button><div className="profile-menu"><button className="profile profile-trigger" type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-label="Buka menu profil"><UserCircle className="profile-icon" aria-hidden="true" /><span className="profile-avatar">{initials}</span><span className="profile-name">{user?.name ?? 'Memuat pengguna'}</span><ChevronDown className="profile-chevron" aria-hidden="true" /></button>{profileOpen && <div className="profile-dropdown"><strong>{user?.name ?? 'Pengguna'}</strong><small>{user?.role ?? 'Sesi'}</small><button type="button" onClick={signOut}>Keluar</button></div>}</div></div></header>{liveToast && <div className="live-notification-toast" role="status" aria-live="polite"><span className="live-notification-toast__icon"><Bell aria-hidden="true" /></span><Link className="live-notification-toast__content" href={liveToastTarget} onClick={(event) => void openNotification(event, liveToast)}><strong>{liveToast.title}</strong><span>{liveToast.ticketNumber ? `${liveToast.ticketNumber} · ` : ''}{liveToast.problem ?? liveToast.solution ?? liveToast.body}</span></Link><button type="button" aria-label="Tutup notifikasi" onClick={() => setLiveToast(null)}>×</button></div>}</>;
+  return <><header className="topbar"><div className="breadcrumb"><Home aria-hidden="true" /><strong>{currentPath}</strong></div><div className="topbar-actions"><div className="notification-menu" ref={notificationMenuRef}><button className="notification-indicator" type="button" onClick={toggleNotifications} aria-label={`${unread} notifikasi belum dibaca`} aria-expanded={notificationsOpen}><Bell aria-hidden="true" />{unread > 0 && <b>{unread > 99 ? '99+' : unread}</b>}</button>{notificationsOpen && <div className="notification-dropdown"><div className="notification-dropdown-header"><strong>Notifikasi</strong><span>{unread} belum dibaca</span></div>{notificationsLoading ? <p className="notification-empty">Memuat notifikasi...</p> : notifications.length === 0 ? <p className="notification-empty">Tidak ada notifikasi</p> : <div className="notification-dropdown-list">{notifications.slice(0, 5).map((item) => <Link href={item.url ?? (item.relatedTicketId ? `/tickets/${item.relatedTicketId}` : '/notifications')} key={item.id} onClick={(event) => void openNotification(event, item)} className={item.read ? '' : 'notification-item--unread'}><strong>{item.title}</strong>{item.ticketNumber && <span className="notification-ticket-number">{item.ticketNumber}</span>}<span>{item.machine ? `${item.machine}${item.problem ? ` · ${item.problem}` : ''}` : item.body}</span><small>{relativeNotificationTime(item.createdAt)}</small></Link>)}</div>}<Link className="notification-dropdown-footer" href="/notifications" onClick={() => setNotificationsOpen(false)}>Lihat semua notifikasi</Link></div>}</div><ThemeSelector /><div className="profile-menu"><button className="profile profile-trigger" type="button" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-label="Buka menu profil"><UserCircle className="profile-icon" aria-hidden="true" /><span className="profile-avatar">{initials}</span><span className="profile-name">{user?.name ?? 'Memuat pengguna'}</span><ChevronDown className="profile-chevron" aria-hidden="true" /></button>{profileOpen && <div className="profile-dropdown"><strong>{user?.name ?? 'Pengguna'}</strong><small>{user?.role ?? 'Sesi'}</small><button type="button" onClick={() => { setProfileOpen(false); setLogoutConfirmOpen(true); }}>Keluar</button></div>}</div></div></header>{liveToast && <div className="live-notification-toast" role="status" aria-live="polite"><span className="live-notification-toast__icon"><Bell aria-hidden="true" /></span><Link className="live-notification-toast__content" href={liveToastTarget} onClick={(event) => void openNotification(event, liveToast)}><strong>{liveToast.title}</strong><span>{liveToast.ticketNumber ? `${liveToast.ticketNumber} · ` : ''}{liveToast.problem ?? liveToast.solution ?? liveToast.body}</span></Link><button type="button" aria-label="Tutup notifikasi" onClick={() => setLiveToast(null)}>×</button></div>}{logoutConfirmOpen && <div className="machine-modal-backdrop logout-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !signingOut) setLogoutConfirmOpen(false); }}><section className="form-card machine-modal logout-confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="logout-confirm-title" aria-describedby="logout-confirm-description"><span className="logout-confirm-icon"><AlertTriangle aria-hidden="true" /></span><h2 id="logout-confirm-title">Keluar dari MIRA?</h2><p id="logout-confirm-description">Anda akan mengakhiri sesi akun ini. Yakin ingin keluar?</p><div className="machine-modal-actions"><button ref={cancelLogoutRef} type="button" className="secondary-action" disabled={signingOut} onClick={() => setLogoutConfirmOpen(false)}>Batal</button><button type="button" className="danger-button" disabled={signingOut} onClick={() => void signOut()}>{signingOut ? 'Sedang keluar…' : 'Keluar'}</button></div></section></div>}</>;
 }

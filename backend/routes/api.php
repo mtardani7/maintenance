@@ -6,6 +6,7 @@ use App\Http\Controllers\MachineController;
 use App\Http\Controllers\PlantController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\MaintenanceTicketController;
+use App\Http\Controllers\MaintenanceDashboardController;
 use App\Http\Controllers\MaintenanceTicketSparePartController;
 use App\Http\Controllers\QaMachineController;
 use App\Http\Controllers\NotificationController;
@@ -27,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
 	Route::post('/machines/resolve-qr', [MachineController::class, 'resolveQr']);
 	Route::apiResource('plants', PlantController::class)->except(['show']);
 	Route::get('/qa-dashboard', [QaMachineController::class, 'dashboard']);
+	Route::get('/maintenance-dashboard', MaintenanceDashboardController::class);
 	Route::post('/machines', [MachineController::class, 'store']);
 	Route::put('/machines/{machine}', [MachineController::class, 'update']);
 	Route::patch('/machines/{machine}', [MachineController::class, 'update']);
