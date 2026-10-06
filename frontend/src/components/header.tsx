@@ -178,7 +178,7 @@ export function Header() {
   async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
-    try { await logout(); } finally { window.location.assign('/login'); }
+    try { await logout(); } finally { window.location.assign(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/`); }
   }
   async function toggleNotifications() {
     const nextOpen = !notificationsOpen;

@@ -24,11 +24,12 @@ const steps = [
 ];
 
 const flow = ['Operator', 'Lapor Masalah', 'Ticket Maintenance', 'Perbaikan', 'Selesai'];
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
 function Brand() {
 	return (
 		<Link className="landing-brand" href="/" aria-label="MIRA beranda">
-			<Image src="/qa-logo.png" alt="" width={40} height={40} priority />
+			<Image src={`${basePath}/qa-logo.png`} alt="" width={40} height={40} priority unoptimized />
 			<span><strong>MIRA</strong><small>Maintenance Improvement Report Analysis</small></span>
 		</Link>
 	);
@@ -102,7 +103,7 @@ export default function Home() {
 					<ol className="landing-guide-list"><li><span>1</span>Buka aplikasi</li><li><span>2</span>Tekan tombol “+”</li><li><span>3</span>Pilih “Scan QR Mesin”</li><li><span>4</span>Scan QR pada mesin</li><li><span>5</span>Isi masalah yang ditemukan</li><li><span>6</span>Kirim laporan</li></ol>
 				</div>
 				<div className="landing-guide-visual landing-operator-visual" aria-label="Ilustrasi langkah operator membuat laporan">
-					<div className="landing-guide-phone"><span className="landing-phone-camera" /><div className="landing-phone-appbar"><Image src="/qa-logo.png" alt="" width={23} height={23} /><span>MIRA</span><Bell size={15} /></div><div className="landing-phone-welcome">Halo, Operator</div><div className="landing-phone-scan"><QrCode size={44} /><span>Scan QR Mesin</span></div><div className="landing-phone-report"><span>Laporan Terbaru</span><strong>Mesin berhenti</strong><small>Menunggu Maintenance</small></div><span className="landing-phone-add">+</span></div>
+					<div className="landing-guide-phone"><span className="landing-phone-camera" /><div className="landing-phone-appbar"><Image src={`${basePath}/qa-logo.png`} alt="" width={23} height={23} unoptimized /><span>MIRA</span><Bell size={15} /></div><div className="landing-phone-welcome">Halo, Operator</div><div className="landing-phone-scan"><QrCode size={44} /><span>Scan QR Mesin</span></div><div className="landing-phone-report"><span>Laporan Terbaru</span><strong>Mesin berhenti</strong><small>Menunggu Maintenance</small></div><span className="landing-phone-add">+</span></div>
 					<div className="landing-guide-caption"><QrCode size={18} /><span><strong>Scan dan laporkan</strong><small>Informasi mesin terisi lebih mudah</small></span></div>
 				</div>
 			</section>
