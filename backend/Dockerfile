@@ -1,7 +1,7 @@
 FROM php:8.4-fpm-alpine
 
 RUN apk add --no-cache postgresql-dev libzip-dev icu-dev postgresql-client \
-    && docker-php-ext-install pdo_pgsql intl zip
+    && docker-php-ext-install pdo_pgsql intl zip pcntl
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html

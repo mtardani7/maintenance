@@ -21,6 +21,30 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## MIRA Telegram assistant
+
+The optional `maintenance-telegram` Compose service long-polls Telegram and answers supported maintenance questions through Ollama. The Laravel query service uses only the `pgsql_mira` connection and fixed Query Builder operations; model output is validated structured intent and is never executed as SQL.
+
+Add these variables to `backend/.env` before starting the service. Keep secrets out of source control:
+
+```dotenv
+OLLAMA_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=qwen3:0.6b
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_MAINTENANCE_CHAT_ID=-5398792908
+MIRA_DB_HOST=192.168.180.22
+MIRA_DB_PORT=5432
+MIRA_DB_DATABASE=maintenance
+MIRA_DB_USERNAME=mira_readonly
+MIRA_DB_PASSWORD=
+```
+
+Create `mira_readonly` in the Maintenance PostgreSQL database separately and grant it only the required `SELECT` privileges. The bot replies in the same private or configured maintenance group chat; messages from other groups are ignored. Role-based access control for private chats is not part of this initial POC.
+
+On Linux, make the host Ollama service reachable from Docker at the host-gateway address and restrict access to the Docker network with the host firewall. Do not expose Ollama publicly. Install `qwen3:0.6b` on that existing Ollama instance; this integration does not start another model/service.
+
+After configuration, validate with `php artisan mira:test` inside the backend container, then start `maintenance-telegram` with Docker Compose. If the bot already has a Telegram webhook configured, remove it before switching to long polling. Do not run two polling instances for the same bot token.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.

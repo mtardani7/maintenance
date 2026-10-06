@@ -99,6 +99,20 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
+        'pgsql_mira' => [
+            'driver' => 'pgsql',
+            'host' => env('MIRA_DB_HOST', '192.168.180.22'),
+            'port' => env('MIRA_DB_PORT', '5432'),
+            'database' => env('MIRA_DB_DATABASE', 'maintenance'),
+            'username' => env('MIRA_DB_USERNAME', 'mira_readonly'),
+            'password' => env('MIRA_DB_PASSWORD', ''),
+            'charset' => env('MIRA_DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('MIRA_DB_SSLMODE', 'prefer'),
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

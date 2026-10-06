@@ -15,8 +15,30 @@ services:
     networks:
       - maintenance-network
       - qa-system-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - maintenance-backend-storage:/var/www/html/storage
+
+  maintenance-telegram:
+    image: maintenance-backend:latest
+    restart: unless-stopped
+    command: ["php", "artisan", "mira:telegram"]
+    stop_grace_period: 45s
+    env_file: ./backend/.env
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: qa-postgres
+      DB_PORT: 5432
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - maintenance-network
+      - qa-system-network
+    volumes:
+      - maintenance-backend-storage:/var/www/html/storage
+    depends_on:
+      maintenance-backend: { condition: service_started }
 
   maintenance-backend-web:
     build:
