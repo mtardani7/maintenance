@@ -23,7 +23,7 @@ Laravel is accessible, powerful, and provides tools required for large, robust a
 
 ## MIRA Telegram assistant
 
-The optional `maintenance-telegram` Compose service long-polls Telegram and answers supported maintenance questions through Ollama. The Laravel query service uses only the `pgsql_mira` connection and fixed Query Builder operations; model output is validated structured intent and is never executed as SQL.
+The optional `maintenance-telegram` Compose service long-polls Telegram and answers supported maintenance questions through Ollama. Ollama is called once to produce a structured intent, including a `supported` scope flag; unsupported questions receive a fixed scope message without querying the database. Laravel validates supported intents, uses only the `pgsql_mira` connection and fixed Query Builder operations, then formats the database result deterministically in Indonesian. Model output is never executed as SQL, and no model call is made after the query.
 
 Add these variables to `backend/.env` before starting the service. Keep secrets out of source control:
 

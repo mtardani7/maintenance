@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Services\MiraAssistantService;
 use App\Services\MiraTelegramClient;
+use App\Services\MiraTelegramMessageHandler;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +17,7 @@ class MiraTelegramCommand extends Command
 
     private bool $shouldStop = false;
 
-    public function handle(MiraTelegramClient $telegram, MiraAssistantService $assistant): int
+    public function handle(MiraTelegramClient $telegram, MiraTelegramMessageHandler $messages): int
     {
         if (! config('services.mira.telegram_token')) {
             $this->error('TELEGRAM_BOT_TOKEN is not configured.');
@@ -75,7 +75,7 @@ class MiraTelegramCommand extends Command
                     && isset($message['chat']['id'])
                     && is_numeric($message['chat']['id'])
                     && ! ($message['from']['is_bot'] ?? false)) {
-                    $this->processMessage($telegram, $assistant, $updateId, $message);
+                    $messages->handle($telegram, $updateId, $message);
                 }
 
                 $offset = $updateId + 1;
@@ -94,67 +94,6 @@ class MiraTelegramCommand extends Command
         $this->info('MIRA Telegram polling stopped.');
 
         return self::SUCCESS;
-    }
-
-    private function processMessage(
-        MiraTelegramClient $telegram,
-        MiraAssistantService $assistant,
-        int $updateId,
-        array $message,
-    ): void {
-        $chatId = $message['chat']['id'];
-        $userId = is_numeric($message['from']['id'] ?? null) ? (int) $message['from']['id'] : null;
-        $startedAt = microtime(true);
-        $chatType = $message['chat']['type'] ?? 'private';
-        $maintenanceChatId = (string) config('services.mira.telegram_maintenance_chat_id', '');
-
-        if ($chatType !== 'private'
-            && ($maintenanceChatId === '' || (string) $chatId !== $maintenanceChatId)) {
-            Log::notice('MIRA Telegram ignored a message from an unconfigured group.', [
-                'update_id' => $updateId,
-                'telegram_user_id' => $userId,
-                'chat_id' => $chatId,
-            ]);
-
-            return;
-        }
-
-        try {
-            $result = $assistant->answer(trim($message['text']));
-
-            Log::info('MIRA Telegram question processed.', [
-                'update_id' => $updateId,
-                'telegram_user_id' => $userId,
-                'chat_id' => $chatId,
-                'intent' => $result['intent'],
-                'query_type' => $result['query_type'],
-                'intent_ms' => $result['intent_ms'],
-                'query_ms' => $result['query_ms'],
-                'ollama_response_ms' => $result['response_ms'],
-                'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
-            ]);
-
-            $telegram->sendMessage($chatId, $result['answer']);
-        } catch (Throwable $exception) {
-            Log::error('MIRA Telegram question failed.', [
-                'update_id' => $updateId,
-                'telegram_user_id' => $userId,
-                'chat_id' => $chatId,
-                'exception' => $exception::class,
-                'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
-            ]);
-
-            try {
-                $telegram->sendMessage($chatId, 'MIRA sedang mengalami gangguan sementara. Silakan coba lagi nanti.');
-            } catch (Throwable $sendException) {
-                Log::error('MIRA Telegram safe error response could not be sent.', [
-                    'update_id' => $updateId,
-                    'telegram_user_id' => $userId,
-                    'chat_id' => $chatId,
-                    'exception' => $sendException::class,
-                ]);
-            }
-        }
     }
 
     private function pause(int $seconds): void

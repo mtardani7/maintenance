@@ -71,6 +71,7 @@ class MiraQueryServiceTest extends TestCase
         ]);
 
         $result = app(MiraQueryService::class)->run([
+            'supported' => true,
             'entity' => 'ticket',
             'metric' => 'count',
             'group_by' => 'none',
@@ -98,6 +99,7 @@ class MiraQueryServiceTest extends TestCase
         ]);
 
         $intent = [
+            'supported' => true,
             'entity' => 'incident',
             'metric' => 'count',
             'group_by' => 'machine',
@@ -119,6 +121,7 @@ class MiraQueryServiceTest extends TestCase
         DB::connection('pgsql_mira')->enableQueryLog();
 
         $result = app(MiraQueryService::class)->run([
+            'supported' => true,
             'entity' => 'ticket',
             'metric' => 'list',
             'group_by' => 'none',

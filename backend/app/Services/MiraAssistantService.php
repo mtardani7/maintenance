@@ -2,19 +2,39 @@
 
 namespace App\Services;
 
-use RuntimeException;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class MiraAssistantService
 {
     public function __construct(
         private readonly MiraIntentService $intents,
         private readonly MiraQueryService $queries,
-        private readonly MiraOllamaClient $ollama,
+        private readonly MiraResponseFormatter $formatter,
     ) {}
 
     public function answer(string $question): array
     {
-        $intentResult = $this->intents->understand($question);
+        $startedAt = microtime(true);
+
+        try {
+            $intentResult = $this->intents->understand($question);
+        } catch (Throwable $exception) {
+            Log::warning('MIRA intent understanding failed.', [
+                'exception' => $exception::class,
+            ]);
+
+            return [
+                'understood' => false,
+                'answer' => 'MIRA belum memahami pertanyaan tersebut.',
+                'intent' => null,
+                'query_type' => null,
+                'intent_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'query_ms' => 0,
+                'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ];
+        }
+
         $intent = $intentResult['intent'];
 
         if ($intent === null) {
@@ -25,7 +45,19 @@ class MiraAssistantService
                 'query_type' => null,
                 'intent_ms' => $intentResult['duration_ms'],
                 'query_ms' => 0,
-                'response_ms' => 0,
+                'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ];
+        }
+
+        if ($intent['supported'] === false) {
+            return [
+                'understood' => false,
+                'answer' => 'Maaf, saya saat ini fokus membantu informasi Maintenance System, seperti tiket, incident, mesin, plant, dan spare part.',
+                'intent' => $intent,
+                'query_type' => null,
+                'intent_ms' => $intentResult['duration_ms'],
+                'query_ms' => 0,
+                'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ];
         }
 
@@ -39,57 +71,28 @@ class MiraAssistantService
                 'query_type' => null,
                 'intent_ms' => $intentResult['duration_ms'],
                 'query_ms' => 0,
-                'response_ms' => 0,
+                'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ];
         }
 
-        $response = $this->composeAnswer($question, $queryResult);
+        try {
+            $answer = $this->formatter->format($question, $intent, $queryResult);
+        } catch (Throwable $exception) {
+            Log::error('MIRA response formatting failed.', [
+                'query_type' => $queryResult['query_type'],
+                'exception' => $exception::class,
+            ]);
+            $answer = 'Data berhasil diperoleh, tetapi jawaban tidak dapat disusun. Silakan coba lagi.';
+        }
 
         return [
             'understood' => true,
-            'answer' => $response['answer'],
+            'answer' => $answer,
             'intent' => $intent,
             'query_type' => $queryResult['query_type'],
             'intent_ms' => $intentResult['duration_ms'],
             'query_ms' => $queryResult['duration_ms'],
-            'response_ms' => $response['duration_ms'],
-        ];
-    }
-
-    public function composeAnswer(string $question, array $queryResult): array
-    {
-        $response = $this->ollama->generateJson([
-            [
-                'role' => 'system',
-                'content' => 'Jawab dalam Bahasa Indonesia, singkat dan natural untuk operator. Gunakan hanya angka dan label pada data yang diberikan. Jangan mengarang, menjelaskan query, menyebut SQL atau database, atau memberikan reasoning. Kembalikan hanya JSON sesuai skema.',
-            ],
-            [
-                'role' => 'user',
-                'content' => json_encode([
-                    'pertanyaan' => mb_substr($question, 0, 500),
-                    'periode' => $queryResult['period'],
-                    'hasil' => $queryResult['data'],
-                ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
-            ],
-        ], [
-            'type' => 'object',
-            'properties' => [
-                'answer' => ['type' => 'string'],
-            ],
-            'required' => ['answer'],
-            'additionalProperties' => false,
-        ]);
-
-        $decoded = json_decode($response['content'], true);
-        $answer = is_array($decoded) ? trim((string) ($decoded['answer'] ?? '')) : '';
-
-        if ($answer === '') {
-            throw new RuntimeException('MIRA Ollama returned an invalid answer.');
-        }
-
-        return [
-            'answer' => mb_substr($answer, 0, 350),
-            'duration_ms' => $response['duration_ms'],
+            'total_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ];
     }
 }

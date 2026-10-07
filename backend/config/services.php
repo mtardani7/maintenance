@@ -48,6 +48,7 @@ return [
         'ollama_url' => env('OLLAMA_URL', 'http://host.docker.internal:11434'),
         'ollama_model' => env('OLLAMA_MODEL', 'qwen3:0.6b'),
         'telegram_token' => env('TELEGRAM_BOT_TOKEN'),
+        'telegram_bot_username' => env('TELEGRAM_BOT_USERNAME', 'mira_dev_bot'),
         'telegram_maintenance_chat_id' => env('TELEGRAM_MAINTENANCE_CHAT_ID', '-5398792908'),
     ],
 

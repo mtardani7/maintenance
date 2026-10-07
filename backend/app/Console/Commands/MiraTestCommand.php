@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Services\MiraAssistantService;
 use App\Services\MiraIntentService;
 use App\Services\MiraOllamaClient;
 use App\Services\MiraQueryService;
+use App\Services\MiraResponseFormatter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -20,7 +20,7 @@ class MiraTestCommand extends Command
         MiraOllamaClient $ollama,
         MiraIntentService $intents,
         MiraQueryService $queries,
-        MiraAssistantService $assistant,
+        MiraResponseFormatter $formatter,
     ): int {
         $failures = 0;
         $intent = null;
@@ -55,15 +55,19 @@ class MiraTestCommand extends Command
             }
         }, $failures);
 
-        $this->report('Response', function () use ($assistant, &$queryResult): void {
+        $this->report('Response', function () use ($formatter, &$queryResult, &$intent): void {
             if (! is_array($queryResult)) {
                 throw new \RuntimeException('No query result is available.');
             }
 
-            $result = $assistant->composeAnswer('Berapa tiket open hari ini?', $queryResult);
+            if (! is_array($intent)) {
+                throw new \RuntimeException('No valid intent is available.');
+            }
 
-            if (trim($result['answer']) === '') {
-                throw new \RuntimeException('Ollama returned an empty response.');
+            $result = $formatter->format('Berapa tiket open hari ini?', $intent, $queryResult);
+
+            if (trim($result) === '') {
+                throw new \RuntimeException('Formatter returned an empty response.');
             }
         }, $failures);
 

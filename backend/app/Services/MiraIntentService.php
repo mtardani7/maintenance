@@ -14,7 +14,7 @@ class MiraIntentService
         $result = $this->ollama->generateJson([
             [
                 'role' => 'system',
-                'content' => 'Ubah pertanyaan operator menjadi intent JSON sesuai skema. Jangan membuat SQL atau penjelasan. Untuk hitungan tiket gunakan entity ticket, metric count, group_by none; kata open menjadi filter.status open. Untuk peringkat mesin dari incident gunakan entity incident, metric count, group_by machine. Untuk peringkat jenis masalah gunakan entity incident, metric count, group_by problem_type. Gunakan sort none jika group_by none dan asc/desc hanya untuk peringkat. Jika filter tidak ada gunakan {} dan limit null. Status gunakan open, closed, atau resolved. Jika pertanyaan tidak didukung, gunakan metric list agar aplikasi menolaknya.',
+                'content' => 'Klasifikasikan pertanyaan operator sebagai supported hanya jika benar-benar berhubungan dengan Maintenance System: ticket, incident, machine, plant, spare part, maintenance status, atau statistik maintenance. Pertanyaan umum seperti tokoh/presiden, cuaca, harga barang, atau cara memasang software adalah di luar scope: supported=false dan gunakan placeholder entity=ticket, metric=list, group_by=none, period=all, filter={}, sort=none, limit=null. Jangan menjawab pertanyaan dan jangan membuat SQL. Untuk pertanyaan dalam scope, supported=true. Untuk hitungan tiket gunakan entity ticket, metric count, group_by none; kata open menjadi filter.status open. Untuk peringkat mesin dari incident gunakan entity incident, metric count, group_by machine. Untuk peringkat jenis masalah gunakan entity incident, metric count, group_by problem_type. Gunakan sort none jika group_by none dan asc/desc hanya untuk peringkat. Jika filter tidak ada gunakan {} dan limit null. Status gunakan open, closed, atau resolved.',
             ],
             ['role' => 'user', 'content' => mb_substr($question, 0, 500)],
         ], self::schema());
@@ -29,12 +29,29 @@ class MiraIntentService
             return ['intent' => null, 'duration_ms' => $result['duration_ms']];
         }
 
+        if ($intent['group_by'] === 'none') {
+            $intent['sort'] = 'none';
+        }
+
+        if ($intent['supported'] === false) {
+            $intent = [
+                'supported' => false,
+                'entity' => 'ticket',
+                'metric' => 'list',
+                'group_by' => 'none',
+                'period' => 'all',
+                'filter' => [],
+                'sort' => 'none',
+                'limit' => null,
+            ];
+        }
+
         return ['intent' => $intent, 'duration_ms' => $result['duration_ms']];
     }
 
     public function isValid(array $intent): bool
     {
-        $allowedKeys = ['entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit'];
+        $allowedKeys = ['supported', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit'];
         $filterKeys = ['status', 'problem_type', 'plant_id', 'machine'];
 
         if (array_diff(array_keys($intent), $allowedKeys) !== []
@@ -44,6 +61,7 @@ class MiraIntentService
         }
 
         return Validator::make($intent, [
+            'supported' => ['required', 'boolean'],
             'entity' => ['required', 'string', 'in:incident,ticket,machine,plant,spare_part'],
             'metric' => ['required', 'string', 'in:count,average,list,status'],
             'group_by' => ['required', 'string', 'in:machine,plant,problem_type,executor,none'],
@@ -63,6 +81,7 @@ class MiraIntentService
         return [
             'type' => 'object',
             'properties' => [
+                'supported' => ['type' => 'boolean'],
                 'entity' => ['type' => 'string', 'enum' => ['incident', 'ticket', 'machine', 'plant', 'spare_part']],
                 'metric' => ['type' => 'string', 'enum' => ['count', 'average', 'list', 'status']],
                 'group_by' => ['type' => 'string', 'enum' => ['machine', 'plant', 'problem_type', 'executor', 'none']],
@@ -80,7 +99,7 @@ class MiraIntentService
                 'sort' => ['type' => 'string', 'enum' => ['asc', 'desc', 'none']],
                 'limit' => ['type' => ['integer', 'null']],
             ],
-            'required' => ['entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit'],
+            'required' => ['supported', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit'],
             'additionalProperties' => false,
         ];
     }

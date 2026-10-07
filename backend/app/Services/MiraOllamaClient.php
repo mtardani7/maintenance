@@ -24,10 +24,11 @@ class MiraOllamaClient
                 'messages' => $messages,
                 'format' => $schema,
                 'stream' => false,
+                'think' => false,
                 'keep_alive' => 0,
                 'options' => [
                     'num_ctx' => 2048,
-                    'num_predict' => 180,
+                    'num_predict' => 256,
                     'temperature' => 0,
                 ],
             ]);
