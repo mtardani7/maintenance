@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Incident;
 use App\Events\TicketCreated;
 use App\Http\Resources\IncidentResource;
-use App\Services\MaintenanceTicketCreator;
-use App\Services\MachineQrPayload;
+use App\Models\Incident;
 use App\Models\Machine;
+use App\Services\MachineQrPayload;
+use App\Services\MaintenanceTicketCreator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +28,7 @@ class IncidentController extends Controller
     public function index(Request $request)
     {
         $incidents = Incident::query()
-            ->with('maintenanceTicket')
+            ->with(['maintenanceTicket', 'attachments'])
             ->when($request->user()?->role !== 'admin', fn ($query) => $query->where('reported_by', $request->user()->id))
             ->when($request->filled('plant_id'), fn ($query) => $query->where('plant_id', $request->integer('plant_id')))
             ->when($request->filled('machine_id'), fn ($query) => $query->where('machine_id', $request->integer('machine_id')))
@@ -54,7 +54,11 @@ class IncidentController extends Controller
             'result' => ['nullable', 'required_if:status,RESOLVED', 'string', 'min:5'],
             'status' => ['required', 'in:OPEN,RESOLVED'],
             'qr_payload' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'files' => ['sometimes', 'array', 'max:5'],
+            'files.*' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,mp4,mov,webm', 'max:18432'],
         ]);
+        $files = $request->file('files', []);
+        abort_if(collect($files)->sum(fn ($file): int => $file->getSize()) > 18 * 1024 * 1024, 422, 'Total attachment size must not exceed 18 MB.');
         if (! empty($data['qr_payload'])) {
             $identifier = MachineQrPayload::parse($data['qr_payload']);
             abort_unless($identifier, 422, 'QR Mesin tidak valid.');
@@ -69,7 +73,7 @@ class IncidentController extends Controller
         unset($data['qr_payload']);
         $data['reported_by'] = $request->user()->id;
 
-        $incident = DB::transaction(function () use ($data, $ticketCreator): Incident {
+        $incident = DB::transaction(function () use ($data, $ticketCreator, $files, $request): Incident {
             $incident = Incident::create($data);
 
             if ($incident->status === 'OPEN') {
@@ -86,17 +90,29 @@ class IncidentController extends Controller
                 event(new TicketCreated($ticket->load('machine'), $incident));
             }
 
+            foreach ($files as $file) {
+                $path = $file->store('attachments/'.now()->format('Y/m'), 'local');
+                $incident->attachments()->create([
+                    'maintenance_ticket_id' => $incident->maintenance_ticket_id,
+                    'uploaded_by' => $request->user()->id,
+                    'file_name' => pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME).'.'.$file->guessExtension(),
+                    'file_path' => $path,
+                    'mime_type' => $file->getMimeType(),
+                    'file_size' => $file->getSize(),
+                ]);
+            }
+
             return $incident;
         });
 
-        return response()->json(new IncidentResource($incident->load('maintenanceTicket')), 201);
+        return response()->json(new IncidentResource($incident->load(['maintenanceTicket', 'attachments'])), 201);
     }
 
     public function show(Request $request, Incident $incident): IncidentResource
     {
         $this->ensureOwnerOrAdmin($request, $incident);
 
-        return new IncidentResource($incident->load('maintenanceTicket'));
+        return new IncidentResource($incident->load(['maintenanceTicket', 'attachments']));
     }
 
     public function update(Request $request, Incident $incident): IncidentResource
@@ -122,6 +138,7 @@ class IncidentController extends Controller
         $this->ensureOwnerOrAdmin($request, $incident);
 
         $incident->delete();
+
         return response()->json(null, 204);
     }
 }

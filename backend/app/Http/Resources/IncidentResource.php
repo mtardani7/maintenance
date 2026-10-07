@@ -20,6 +20,7 @@ class IncidentResource extends JsonResource
             'status' => $this->status,
             'createdAt' => $this->created_at?->toISOString(),
             'ticket_number' => $this->whenLoaded('maintenanceTicket', fn () => $this->maintenanceTicket?->ticket_number),
+            'attachments' => AttachmentResource::collection($this->whenLoaded('attachments')),
         ];
     }
 }

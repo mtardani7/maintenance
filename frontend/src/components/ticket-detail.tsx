@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { addSparePart, apiMessage, getMaintenanceUsers, getTicket, performTicketAction, removeSparePart, updateBreakdownAnalysis, updateVerificationChecklist } from '@/lib/ticket-api';
 import type { BreakdownAnalysisInput, MaintenanceUser, SparePart, Ticket, TicketActionInput, VerificationChecklist, VerificationKey, VerificationValue } from '@/lib/ticket-types';
 import { DetailSkeleton, ErrorState } from './ui';
+import { TicketAttachments } from './ticket-attachments';
 import { useAuthUser } from './auth-boundary';
 
 function formatDateTime(value?: string) {
@@ -229,6 +230,8 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
           <div className="ticket-detail-fact-wide"><dt>Hasil Pekerjaan</dt><dd>{ticket.solution || 'Belum diisi'}</dd></div>
         </dl>}
       </section>
+
+      <TicketAttachments ticketId={ticket.id} attachments={ticket.attachments} editable={ticket.status === 'OPEN' && canManage} onUploaded={(attachments) => setTicket((current) => current ? { ...current, attachments } : current)} />
 
       <section className="ticket-info-card spare-parts-card ticket-spare-section ticket-detail-section ticket-detail-optional">
         <div className="ticket-detail-section-heading ticket-detail-section-heading--action"><div><h2><span className="ticket-detail-section-icon"><Wrench aria-hidden="true" /></span>Spare Part <span className="ticket-optional-tag">Opsional</span></h2><p>Tambahkan hanya jika ada spare part yang digunakan.</p></div>{ticket.status === 'OPEN' && canManage && <button className="secondary-action ticket-add-part" type="button" onClick={() => setShowSparePartForm((current) => !current)} disabled={sparePartBusy}><Plus aria-hidden="true" />{showSparePartForm ? 'Batal' : 'Tambah Spare Part'}</button>}</div>

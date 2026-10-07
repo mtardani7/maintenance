@@ -10,6 +10,7 @@ use App\Http\Controllers\MaintenanceDashboardController;
 use App\Http\Controllers\MaintenanceTicketSparePartController;
 use App\Http\Controllers\QaMachineController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\AttachmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -36,6 +37,9 @@ Route::middleware('auth:sanctum')->group(function (): void {
 	Route::post('/tickets/{ticket}/actions', [MaintenanceTicketController::class, 'action']);
 	Route::post('/tickets/{ticket}/actions/{action}', [MaintenanceTicketController::class, 'action']);
 	Route::get('/maintenance-users', [MaintenanceTicketController::class, 'maintenanceUsers']);
+	Route::post('/incidents/{incident}/attachments', [AttachmentController::class, 'storeForIncident']);
+	Route::post('/tickets/{ticket}/attachments', [AttachmentController::class, 'storeForTicket']);
+	Route::get('/attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
 	Route::post('/tickets/{ticket}/spare-parts', [MaintenanceTicketSparePartController::class, 'store']);
 	Route::delete('/tickets/{ticket}/spare-parts/{sparePart}', [MaintenanceTicketSparePartController::class, 'destroy']);
 	Route::apiResource('incidents', IncidentController::class);

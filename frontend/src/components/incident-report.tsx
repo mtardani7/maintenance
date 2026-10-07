@@ -6,6 +6,8 @@ import { AlertTriangle, Check, CircleAlert, CircleCheck, ClipboardCheck, Cog, Fa
 import { createIncident, getIncidents, getMachines, getPlantOptions, type PlantOption } from '@/lib/maintenance-api';
 import type { Incident, Machine, ResolvedMachineQr } from '@/lib/maintenance-types';
 import { DataPagination, EmptyState, ErrorState, MaintenanceTable, PaginationSkeleton, Skeleton, TableSkeleton } from './ui';
+import { MediaAttachmentPicker } from './media-attachment-picker';
+import { ProtectedAttachmentLink } from './protected-attachment-link';
 
 const problemTypes = [
   { value: 'Machine stopped', label: 'Mesin berhenti', detail: 'Mesin tidak beroperasi', icon: Settings2 },
@@ -37,6 +39,7 @@ export function IncidentReport() {
   const [resolution, setResolution] = useState<Resolution>('');
   const [actionTaken, setActionTaken] = useState('');
   const [result, setResult] = useState('');
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [plantsLoading, setPlantsLoading] = useState(true);
   const [machinesLoading, setMachinesLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +85,7 @@ export function IncidentReport() {
     setResolution('');
     setActionTaken('');
     setResult('');
+    setAttachmentFiles([]);
     setQrPrefill(null);
     setTouched(false);
     void refreshHistory();
@@ -208,12 +212,12 @@ export function IncidentReport() {
     setSubmitting(true);
     try {
       if (resolution === 'resolved') {
-        await createIncident({ plantId, machineId, problemType, description: description.trim(), actionTaken: actionTaken.trim(), result: result.trim(), status: 'RESOLVED', qrPayload: qrPrefill?.payload });
+        await createIncident({ plantId, machineId, problemType, description: description.trim(), actionTaken: actionTaken.trim(), result: result.trim(), status: 'RESOLVED', qrPayload: qrPrefill?.payload, files: attachmentFiles });
         setSuccessTicketNumber('');
         setSuccessOpen(true);
         setReportOpen(false);
       } else {
-        const createdIncident = await createIncident({ plantId, machineId, problemType, description: description.trim(), status: 'OPEN', qrPayload: qrPrefill?.payload });
+        const createdIncident = await createIncident({ plantId, machineId, problemType, description: description.trim(), status: 'OPEN', qrPayload: qrPrefill?.payload, files: attachmentFiles });
         const ticketNumber = createdIncident.ticketNumber;
         if (!ticketNumber) throw new Error('Ticket berhasil dibuat, tetapi nomor ticket tidak tersedia dari API.');
         setSuccessTicketNumber(ticketNumber);
@@ -253,6 +257,7 @@ export function IncidentReport() {
         <div className="incident-section-heading"><span className="incident-section-icon"><CircleAlert aria-hidden="true" /></span><div><p className="eyebrow">Langkah 2</p><h2>Apa masalahnya?</h2><p>Pilih jenis masalah dan jelaskan kondisi yang terjadi.</p></div></div>
         <div className="form-field"><span className="incident-field-label"><ClipboardCheck aria-hidden="true" />Jenis masalah</span><div className="choice-grid incident-choice-grid">{problemTypes.map((type) => { const Icon = type.icon; return <button type="button" className={`choice-button incident-choice-card ${problemType === type.value ? 'choice-button--selected' : ''}`} key={type.value} onClick={() => setProblemType(type.value)} disabled={submitting}><Icon aria-hidden="true" /><span><strong>{type.label}</strong><small>{type.detail}</small></span></button>; })}</div></div>
         <label className="form-field incident-description-field"><span className="incident-field-label">Deskripsi Masalah{problemType === 'Other' && ' (wajib)'}</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} onBlur={() => setTouched(true)} rows={3} placeholder="Jelaskan apa yang terjadi pada mesin..." disabled={submitting} /><span className="form-helper">Berikan informasi singkat agar Maintenance dapat memahami masalah.</span>{descriptionError && <span className="form-inline-error">{descriptionError}</span>}</label>
+        <div className="form-field"><span className="incident-field-label">Foto atau video kondisi mesin</span><MediaAttachmentPicker files={attachmentFiles} onChange={setAttachmentFiles} disabled={submitting} /></div>
       </section>
       <section className="form-card incident-form-section">
         <div className="incident-section-heading"><span className="incident-section-icon"><Wrench aria-hidden="true" /></span><div><p className="eyebrow">Langkah 3</p><h2>Tindakan awal</h2><p>Apakah masalah dapat ditangani Operator?</p></div></div>
@@ -263,7 +268,7 @@ export function IncidentReport() {
       {error && <ErrorState title="Laporan belum tersimpan" description="Periksa kembali data laporan, lalu coba lagi." onRetry={() => void submitReport()} />}
     </div>
     <aside className="report-aside"><p className="eyebrow">Ringkasan</p><h2>{selectedPlant?.name ?? 'Pilih plant'}</h2><p>{selectedMachine?.name ?? 'Pilih mesin untuk melanjutkan laporan.'}</p></aside>
-  </div></div><div className="incident-form-modal__footer"><button className="secondary-action" type="button" onClick={() => setReportOpen(false)} disabled={submitting}>Batal</button><button className="primary-button" type="button" onClick={() => void submitReport()} disabled={submitting || machinesLoading}><ClipboardCheck aria-hidden="true" />{submitting ? 'Menyimpan...' : 'Simpan Laporan'}</button></div></section></div>}
+  </div></div><div className="incident-form-modal__footer"><button className="secondary-action" type="button" onClick={() => setReportOpen(false)} disabled={submitting}>Batal</button><button className="primary-button" type="button" onClick={() => void submitReport()} disabled={submitting || machinesLoading}><ClipboardCheck aria-hidden="true" />{submitting ? attachmentFiles.length ? 'Mengunggah...' : 'Menyimpan...' : 'Simpan Laporan'}</button></div></section></div>}
   <section className="incident-history">
     <div className="incident-history-heading">
       <div><p className="eyebrow">Catatan tersimpan</p><h2>Riwayat Insiden</h2><p>Daftar laporan masalah.</p></div>
@@ -283,7 +288,7 @@ export function IncidentReport() {
     {historyError ? <ErrorState title="Data tidak dapat dimuat" description="Coba lagi beberapa saat." onRetry={() => void refreshHistory()} /> : historyLoading ? <><PaginationSkeleton className="ticket-pagination ticket-pagination-skeleton incident-pagination maintenance-pagination-skeleton" /><TableSkeleton className="incident-table-wrap" tableClassName="incident-table" headers={["Tanggal", "Masalah", "Plant / Mesin", "Status", "Maintenance Ticket"]} rows={6} /></> : visibleIncidents.length === 0 ? <div className="incident-empty-state"><ClipboardCheck aria-hidden="true" /><strong>Belum ada laporan insiden</strong><p>{historySearch || historyPlant || historyMachine || historyStatus || historyProblemType ? 'Belum ada laporan yang sesuai dengan filter.' : 'Belum ada laporan yang tersimpan.'}</p>{(historySearch || historyPlant || historyMachine || historyStatus || historyProblemType) && <button className="secondary-action" type="button" onClick={resetHistoryFilters}>Reset Filter</button>}</div> : <>
       <DataPagination currentPage={historyPage} totalPages={totalHistoryPages} onPageChange={setHistoryPage} pageSize={historyPageSize} onPageSizeChange={changeHistoryPageSize} summary={`Menampilkan ${(historyPage - 1) * historyPageSize + 1}–${Math.min(historyPage * historyPageSize, filteredIncidents.length)} dari ${filteredIncidents.length} insiden`} mobileSummary={`${(historyPage - 1) * historyPageSize + 1}–${Math.min(historyPage * historyPageSize, filteredIncidents.length)} dari ${filteredIncidents.length}`} />
       <MaintenanceTable containerClassName="incident-table-wrap" className="incident-table" label="Riwayat insiden"><thead><tr><th>Tanggal</th><th>Masalah</th><th>Plant / Mesin</th><th>Status</th><th>Nomor Tiket</th></tr></thead><tbody>{visibleIncidents.map((incident) => { const machine = machineDirectory.find((item) => String(item.id) === String(incident.machineId)); const ticketNumber = incident.ticketNumber; return <tr className={!ticketNumber ? 'incident-table__row--no-ticket' : undefined} key={incident.id} onClick={() => setSelectedIncident(incident)}><td>{incident.createdAt ? new Date(incident.createdAt).toLocaleString('id-ID') : '-'}</td><td><strong>{problemTypes.find((type) => type.value === incident.problemType)?.label ?? incident.problemType}</strong><small>{incident.description || 'Tidak ada deskripsi tambahan.'}</small></td><td><strong>{plants.find((plant) => String(plant.id) === String(incident.plantId))?.name ?? `Plant ${incident.plantId ?? '—'}`}</strong><small>{machine?.name ?? `Mesin ${incident.machineId ?? '—'}`}</small></td><td><b className={`incident-status-badge incident-status-badge--${incident.status?.toLowerCase() ?? 'unknown'}`}>{incidentStatusLabel(incident.status)}</b></td><td>{ticketNumber ? <Link className="incident-ticket-badge" href={`/tickets/${encodeURIComponent(ticketNumber)}`} title={ticketNumber} onClick={(event) => event.stopPropagation()}>{ticketNumber}</Link> : <span className="incident-ticket-missing">—</span>}</td></tr>; })}</tbody></MaintenanceTable>
-    </>}    {selectedIncident && <div className="incident-modal-backdrop" role="presentation" onClick={() => setSelectedIncident(null)}><section className="incident-modal" role="dialog" aria-modal="true" aria-label="Detail insiden" onClick={(event) => event.stopPropagation()}><div className="incident-detail-heading"><div><p className="eyebrow">Detail insiden #{selectedIncident.id}</p><h3>{problemTypes.find((type) => type.value === selectedIncident.problemType)?.label ?? selectedIncident.problemType}</h3></div><button className="icon-button" type="button" onClick={() => setSelectedIncident(null)} aria-label="Tutup detail insiden">×</button></div><dl className="incident-detail-grid"><div><dt>Plant</dt><dd>{plants.find((plant) => String(plant.id) === String(selectedIncident.plantId))?.name ?? `Plant #${selectedIncident.plantId ?? '-'}`}</dd></div><div><dt>Mesin</dt><dd>{machineDirectory.find((machine) => String(machine.id) === String(selectedIncident.machineId))?.name ?? `Mesin #${selectedIncident.machineId ?? '-'}`}</dd></div><div><dt>Waktu</dt><dd>{selectedIncident.createdAt ? new Date(selectedIncident.createdAt).toLocaleString('id-ID') : '-'}</dd></div><div><dt>Status</dt><dd>{selectedIncident.status === 'RESOLVED' ? 'Selesai' : selectedIncident.status ?? 'Tidak diketahui'}</dd></div><div className="incident-detail-wide"><dt>Deskripsi</dt><dd>{selectedIncident.description || '-'}</dd></div><div><dt>Tindakan</dt><dd>{selectedIncident.actionTaken || '-'}</dd></div><div><dt>Hasil</dt><dd>{selectedIncident.result || '-'}</dd></div></dl></section></div>}
+  </>}    {selectedIncident && <div className="incident-modal-backdrop" role="presentation" onClick={() => setSelectedIncident(null)}><section className="incident-modal" role="dialog" aria-modal="true" aria-label="Detail insiden" onClick={(event) => event.stopPropagation()}><div className="incident-detail-heading"><div><p className="eyebrow">Detail insiden #{selectedIncident.id}</p><h3>{problemTypes.find((type) => type.value === selectedIncident.problemType)?.label ?? selectedIncident.problemType}</h3></div><button className="icon-button" type="button" onClick={() => setSelectedIncident(null)} aria-label="Tutup detail insiden">×</button></div><dl className="incident-detail-grid"><div><dt>Plant</dt><dd>{plants.find((plant) => String(plant.id) === String(selectedIncident.plantId))?.name ?? `Plant #${selectedIncident.plantId ?? '-'}`}</dd></div><div><dt>Mesin</dt><dd>{machineDirectory.find((machine) => String(machine.id) === String(selectedIncident.machineId))?.name ?? `Mesin #${selectedIncident.machineId ?? '-'}`}</dd></div><div><dt>Waktu</dt><dd>{selectedIncident.createdAt ? new Date(selectedIncident.createdAt).toLocaleString('id-ID') : '-'}</dd></div><div><dt>Status</dt><dd>{selectedIncident.status === 'RESOLVED' ? 'Selesai' : selectedIncident.status ?? 'Tidak diketahui'}</dd></div><div className="incident-detail-wide"><dt>Deskripsi</dt><dd>{selectedIncident.description || '-'}</dd></div><div><dt>Tindakan</dt><dd>{selectedIncident.actionTaken || '-'}</dd></div><div><dt>Hasil</dt><dd>{selectedIncident.result || '-'}</dd></div>{selectedIncident.attachments?.length ? <div className="incident-detail-wide"><dt>Foto/Video</dt><dd><ul className="media-attachment-files">{selectedIncident.attachments.map((attachment) => <li key={attachment.id}><ProtectedAttachmentLink url={attachment.url} fileName={attachment.file_name} /><small>{(attachment.file_size / 1024 / 1024).toFixed(1)} MB</small></li>)}</ul></dd></div> : null}</dl></section></div>}
   </section>
   </>;
 }

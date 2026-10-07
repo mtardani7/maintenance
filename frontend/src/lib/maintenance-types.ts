@@ -45,6 +45,7 @@ export type Incident = {
   status?: 'OPEN' | 'RESOLVED';
   ticketNumber?: string;
   createdAt: string;
+  attachments?: { id: number | string; file_name: string; mime_type: string; file_size: number; url: string }[];
 };
 
 export type MaintenanceTicket = {
@@ -82,6 +83,7 @@ export type CreateIncidentInput = {
   result?: string;
   status: 'OPEN' | 'RESOLVED';
   qrPayload?: string;
+  files?: File[];
 };
 
 export type ResolvedMachineQr = {

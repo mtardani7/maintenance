@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Incident extends Model
 {
@@ -20,5 +21,10 @@ class Incident extends Model
     public function maintenanceTicket(): BelongsTo
     {
         return $this->belongsTo(MaintenanceTicket::class, 'maintenance_ticket_id');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(Attachment::class);
     }
 }

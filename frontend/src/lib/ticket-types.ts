@@ -37,7 +37,7 @@ export type Ticket = {
     remaining?: string;
     overdueDuration?: string;
   };
-  attachments?: { id: number | string; name: string; url?: string }[];
+  attachments?: { id: number | string; file_name: string; mime_type: string; file_size: number; url: string }[];
   timeline?: TimelineEvent[];
 };
 

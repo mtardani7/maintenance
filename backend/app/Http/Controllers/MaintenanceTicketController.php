@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\MaintenanceTicket;
-use App\Models\Incident;
-use App\Models\User;
 use App\Events\TicketClosed;
+use App\Models\Incident;
+use App\Models\MaintenanceTicket;
+use App\Models\User;
 use App\Services\MaintenanceTicketCreator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +22,7 @@ class MaintenanceTicketController extends Controller
     public function index(Request $request): JsonResponse
     {
         $tickets = MaintenanceTicket::query()
-            ->with(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts'])
+            ->with(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts', 'attachments'])
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $search = trim($request->string('search')->toString());
                 $query->where(function ($ticketQuery) use ($search): void {
@@ -66,7 +66,7 @@ class MaintenanceTicketController extends Controller
 
     public function show(MaintenanceTicket $ticket): JsonResponse
     {
-        return response()->json($ticket->load(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts']));
+        return response()->json($ticket->load(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts', 'attachments']));
     }
 
     public function maintenanceUsers(): JsonResponse
@@ -158,6 +158,7 @@ class MaintenanceTicketController extends Controller
         }
 
         $ticket->delete();
+
         return response()->json(null, 204);
     }
 }

@@ -82,4 +82,9 @@ class MaintenanceTicket extends Model
     {
         return $this->hasMany(MaintenanceTicketSparePart::class, 'maintenance_ticket_id');
     }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(Attachment::class);
+    }
 }

@@ -168,9 +168,7 @@ export async function getMachineTickets(id: Machine['id']): Promise<MaintenanceT
 }
 
 export async function createIncident(input: CreateIncidentInput) {
-  const response = await apiRequest<Incident & { ticket_number?: string }>(requiredPath(paths.createIncident, 'Incident creation'), {
-    method: 'POST',
-    body: JSON.stringify({
+  const values = {
       plant_id: input.plantId,
       machine_id: input.machineId,
       problem_type: input.problemType,
@@ -179,8 +177,15 @@ export async function createIncident(input: CreateIncidentInput) {
       result: input.result,
       status: input.status,
       qr_payload: input.qrPayload,
-    }),
-  });
+  };
+  let body: BodyInit;
+  if (input.files?.length) {
+    const data = new FormData();
+    Object.entries(values).forEach(([key, value]) => { if (value !== undefined) data.append(key, String(value)); });
+    input.files.forEach((file) => data.append('files[]', file, file.name));
+    body = data;
+  } else body = JSON.stringify(values);
+  const response = await apiRequest<Incident & { ticket_number?: string }>(requiredPath(paths.createIncident, 'Incident creation'), { method: 'POST', body });
   return { ...response, ticketNumber: response.ticketNumber ?? response.ticket_number };
 }
 

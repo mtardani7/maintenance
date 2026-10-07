@@ -3155,6 +3155,29 @@ html[data-theme="dark"] .nav-link { color: #cbd5e1; }
 html[data-theme="dark"] .nav-link--active { background: #263449; color: #fff; box-shadow: inset 3px 0 var(--red); }
 html[data-theme="dark"] .sidebar-foot { border-color: var(--line); }
 html[data-theme="dark"] .profile-trigger:hover, html[data-theme="dark"] .theme-menu__popover > button:hover, html[data-theme="dark"] .theme-menu__popover > button[aria-checked="true"] { background: #263449; color: #fca5a5; }
+
+.media-attachment-picker { min-width: 0; max-width: 100%; }
+.media-attachment-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.media-attachment-actions .secondary-action, .media-ticket-attachments > .primary-button { display: inline-flex; width: auto; align-items: center; justify-content: center; gap: 7px; }
+.media-attachment-actions svg, .media-ticket-attachments > .primary-button svg { width: 16px; height: 16px; }
+.media-attachment-hint, .media-attachment-status { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.media-attachment-files { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; min-width: 0; }
+.media-attachment-files li { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); background: var(--panel); font-size: 12px; }
+.media-attachment-files li > span, .media-attachment-files li > a { min-width: 0; overflow-wrap: anywhere; }
+.media-attachment-files li > a { color: var(--teal); }
+.protected-attachment-link { display: grid; min-width: 0; }
+.media-attachment-files li .protected-attachment-link button { display: inline-flex; width: auto; height: auto; justify-content: flex-start; gap: 5px; padding: 0; color: var(--teal); text-align: left; overflow-wrap: anywhere; }
+.media-attachment-files li .protected-attachment-link button svg { flex: 0 0 15px; width: 15px; height: 15px; }
+.protected-attachment-link small { margin-top: 3px; color: #b91c1c; font-size: 11px; }
+.media-attachment-files li small { flex: 0 0 auto; color: var(--muted); }
+.media-attachment-files li button { display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.media-attachment-files li button svg { width: 16px; height: 16px; }
+.media-ticket-attachments .media-attachment-picker { margin: 12px 0; }
+@media (max-width: 480px) { .media-attachment-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.media-attachment-actions .secondary-action { width: 100%; padding-inline: 8px; font-size: 10px; }.media-attachment-files li { align-items: flex-start; } }
+html[data-theme="dark"] .media-attachment-files li { background: #1e293b; border-color: #334155; }
+html[data-theme="dark"] .media-attachment-actions .secondary-action { border-color: #475569; background-color: #1e293b; color: #e2e8f0; }
+html[data-theme="dark"] .media-attachment-actions .secondary-action:hover:not(:disabled), html[data-theme="dark"] .media-attachment-actions .secondary-action:focus-visible:not(:disabled) { border-color: #64748b; background-color: #334155; color: #f8fafc; }
+html[data-theme="dark"] .media-attachment-actions .secondary-action:disabled { border-color: #334155; background-color: #1e293b; color: #94a3b8; opacity: .8; }
 html[data-theme="dark"] .theme-menu__popover { border-color: var(--line); background: var(--panel); color: var(--ink); }
 html[data-theme="dark"] .theme-menu__popover > strong { color: var(--muted); }
 html[data-theme="dark"] .theme-menu__popover > button { color: #cbd5e1; }
@@ -3406,6 +3429,14 @@ html[data-theme="dark"] .incident-history-filters > .incident-more-filters[open]
 .maintenance-machine-modal > .primary-button { width: 100%; }
 html[data-theme="dark"] .maintenance-attention-row:hover,
 html[data-theme="dark"] .maintenance-trend-row:hover { background: #1e293b; }
+
+/* Consistent contrast for secondary and custom buttons across every dark-mode page. */
+html[data-theme="dark"] button:hover:not(:disabled):not(.primary-button):not(.danger-button):not(.incident-page-current):not(.pagination__current):not(.is-current),
+html[data-theme="dark"] button:focus-visible:not(:disabled):not(.primary-button):not(.danger-button):not(.incident-page-current):not(.pagination__current):not(.is-current) {
+	border-color: #64748b;
+	background-color: #334155;
+	color: #f8fafc;
+}
 html[data-theme="dark"] .maintenance-trend-rank,
 html[data-theme="dark"] .maintenance-machine-total { background: #1e293b; color: var(--text-secondary); }
 html[data-theme="dark"] .maintenance-trend-bar { background: #334155; }

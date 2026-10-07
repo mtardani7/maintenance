@@ -1,4 +1,4 @@
-import { apiRequest, ApiConfigurationError, ApiError } from "./api";
+import { apiDownload, apiRequest, ApiConfigurationError, ApiError } from "./api";
 import type {
   MaintenanceUser,
   BreakdownAnalysisInput,
@@ -126,6 +126,7 @@ function normalizeTicket(
     sourceType: (ticket.sourceType ?? ticket.source) as Ticket["sourceType"],
     reporter: ticket.reporter as Ticket["reporter"],
     createdAt: String(ticket.createdAt ?? ticket.created_at ?? ""),
+    attachments: ((ticket.attachments as Ticket["attachments"] | undefined) ?? []),
   };
 }
 
@@ -158,6 +159,22 @@ export function getTicket(id: Ticket["id"]) {
   return apiRequest<Partial<Ticket> & Record<string, unknown>>(
     replacePath(paths.detail, id, "Ticket detail"),
   ).then((ticket) => normalizeTicket(ticket));
+}
+
+export async function uploadTicketAttachments(id: Ticket["id"], files: File[]) {
+  const body = new FormData();
+  files.forEach((file) => body.append('files[]', file, file.name));
+  return apiRequest<{ data: NonNullable<Ticket['attachments']> }>(`/tickets/${encodeURIComponent(String(id))}/attachments`, { method: 'POST', body });
+}
+
+export async function downloadTicketAttachment(url: string, fileName: string) {
+  const blob = await apiDownload(url);
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
 }
 
 export function getTicketStats() {
