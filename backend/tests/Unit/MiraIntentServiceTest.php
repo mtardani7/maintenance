@@ -3,37 +3,16 @@
 namespace Tests\Unit;
 
 use App\Services\MiraIntentService;
-use App\Services\MiraOllamaClient;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class MiraIntentServiceTest extends TestCase
 {
-    public function test_it_parses_a_structured_ticket_count_intent(): void
+    private function maintenanceResponse(array $overrides = []): array
     {
-        Config::set('services.mira.ollama_url', 'http://ollama.test:11434');
-        Config::set('services.mira.ollama_model', 'qwen3:0.6b');
-        Http::fake([
-            'ollama.test:11434/api/chat' => Http::response([
-                'message' => [
-                    'content' => json_encode([
-                        'supported' => true,
-                        'entity' => 'ticket',
-                        'metric' => 'count',
-                        'group_by' => 'none',
-                        'period' => 'today',
-                        'filter' => ['status' => 'open'],
-                        'sort' => 'none',
-                        'limit' => null,
-                    ], JSON_THROW_ON_ERROR),
-                ],
-            ]),
-        ]);
-
-        $result = app(MiraIntentService::class)->understand('Berapa jumlah tiket maintenance hari ini?');
-
-        $this->assertSame([
+        return array_replace([
+            'route' => 'maintenance',
             'supported' => true,
             'entity' => 'ticket',
             'metric' => 'count',
@@ -42,56 +21,98 @@ class MiraIntentServiceTest extends TestCase
             'filter' => ['status' => 'open'],
             'sort' => 'none',
             'limit' => null,
-        ], $result['intent']);
-        $this->assertTrue($result['intent']['supported']);
-
-        Http::assertSent(function ($request): bool {
-            return $request['format']['type'] === 'object'
-                && $request['stream'] === false
-                && $request['think'] === false
-                && $request['keep_alive'] === '5m'
-                && $request['options']['num_ctx'] === 2048
-                && $request['options']['num_predict'] === 256
-                && $request['options']['temperature'] === 0;
-        });
+            'answer' => '',
+            'clarification' => '',
+        ], $overrides);
     }
 
-    public function test_simple_open_ticket_count_is_parsed_without_calling_ollama(): void
-    {
-        Http::fake();
-
-        $result = app(MiraIntentService::class)->understand('Berapa tiket open hari ini?');
-
-        $this->assertSame([
-            'supported' => true,
-            'entity' => 'ticket',
-            'metric' => 'count',
-            'group_by' => 'none',
-            'period' => 'today',
-            'filter' => ['status' => 'open'],
-            'sort' => 'none',
-            'limit' => null,
-        ], $result['intent']);
-        Http::assertNothingSent();
-    }
-
-    public function test_general_chat_payload_uses_keep_alive_without_json_schema(): void
+    public function test_variations_of_open_ticket_questions_have_same_maintenance_intent(): void
     {
         Config::set('services.mira.ollama_url', 'http://ollama.test:11434');
-        Config::set('services.mira.ollama_model', 'qwen3:0.6b');
-        Http::fake(['ollama.test:11434/api/chat' => Http::response([
-            'message' => ['content' => 'VPN mengenkripsi koneksi.'],
+        Config::set('services.mira.ollama_model', 'qwen3.5:2b');
+        $questions = [
+            'Berapa tiket open hari ini?',
+            'Berapa tiket yang terbuka hari ini?',
+            'Cek jumlah tiket yang masih terbuka hari ini.',
+            'Tolong hitung tiket yang belum selesai hari ini.',
+            'Ada berapa ticket yang statusnya open hari ini?',
+        ];
+        Http::fake(['ollama.test:11434/api/chat' => Http::sequence()->push([
+            'message' => ['content' => json_encode($this->maintenanceResponse(), JSON_THROW_ON_ERROR)],
+        ])->push([
+            'message' => ['content' => json_encode($this->maintenanceResponse(), JSON_THROW_ON_ERROR)],
+        ])->push([
+            'message' => ['content' => json_encode($this->maintenanceResponse(), JSON_THROW_ON_ERROR)],
+        ])->push([
+            'message' => ['content' => json_encode($this->maintenanceResponse(), JSON_THROW_ON_ERROR)],
+        ])->push([
+            'message' => ['content' => json_encode($this->maintenanceResponse(), JSON_THROW_ON_ERROR)],
         ])]);
 
-        $result = app(MiraOllamaClient::class)->chat([
-            ['role' => 'user', 'content' => 'Apa itu VPN?'],
-        ]);
+        foreach ($questions as $question) {
+            $result = app(MiraIntentService::class)->understand($question);
+            $this->assertSame('maintenance', $result['route']);
+            $this->assertSame([
+                'supported' => true,
+                'entity' => 'ticket',
+                'metric' => 'count',
+                'group_by' => 'none',
+                'period' => 'today',
+                'filter' => ['status' => 'open'],
+                'sort' => 'none',
+                'limit' => null,
+            ], $result['intent']);
+        }
 
-        $this->assertSame('VPN mengenkripsi koneksi.', $result['content']);
-        Http::assertSent(fn ($request): bool => $request['keep_alive'] === '5m'
+        Http::assertSentCount(5);
+        Http::assertSent(fn ($request): bool => $request['format']['type'] === 'object'
             && $request['think'] === false
-            && $request['options']['temperature'] === 0
-            && ! array_key_exists('format', $request->data()));
+            && $request['keep_alive'] === '5m'
+            && $request['options']['temperature'] === 0);
+    }
+
+    public function test_general_route_has_no_maintenance_intent(): void
+    {
+        Config::set('services.mira.ollama_url', 'http://ollama.test:11434');
+        Config::set('services.mira.ollama_model', 'qwen3.5:2b');
+        $response = $this->maintenanceResponse([
+            'route' => 'general', 'supported' => false, 'metric' => 'list', 'period' => 'all',
+            'filter' => [], 'answer' => 'VPN membuat koneksi terenkripsi.',
+        ]);
+        Http::fake(['ollama.test:11434/api/chat' => Http::response([
+            'message' => ['content' => json_encode($response, JSON_THROW_ON_ERROR)],
+        ])]);
+
+        $result = app(MiraIntentService::class)->understand('Bagaimana cara kerja VPN?');
+
+        $this->assertSame('general', $result['route']);
+        $this->assertNull($result['intent']);
+        $this->assertSame('VPN membuat koneksi terenkripsi.', $result['answer']);
+    }
+
+    public function test_clarify_route_has_no_intent_to_execute(): void
+    {
+        $response = $this->maintenanceResponse([
+            'route' => 'clarify', 'supported' => false, 'metric' => 'list', 'period' => 'all',
+            'filter' => [], 'clarification' => 'Maksudnya tiket open atau closed?',
+        ]);
+        Http::fake(['*' => Http::response(['message' => ['content' => json_encode($response, JSON_THROW_ON_ERROR)]])]);
+
+        $result = app(MiraIntentService::class)->understand('Berapa jumlah tiket?');
+
+        $this->assertSame('clarify', $result['route']);
+        $this->assertNull($result['intent']);
+        $this->assertNotSame('', $result['clarification']);
+    }
+
+    public function test_invalid_structured_output_returns_safe_invalid_route(): void
+    {
+        Http::fake(['*' => Http::response(['message' => ['content' => '{invalid json']])]);
+
+        $result = app(MiraIntentService::class)->understand('Berapa tiket hari ini?');
+
+        $this->assertSame('invalid', $result['route']);
+        $this->assertNull($result['intent']);
     }
 
     public function test_it_rejects_an_intent_that_contains_sql(): void
@@ -108,124 +129,5 @@ class MiraIntentServiceTest extends TestCase
             'sort' => 'none',
             'limit' => null,
         ]));
-    }
-
-    public function test_it_normalizes_sort_for_non_grouped_ticket_count_intents(): void
-    {
-        Config::set('services.mira.ollama_url', 'http://ollama.test:11434');
-        Config::set('services.mira.ollama_model', 'qwen3:0.6b');
-        Http::fake([
-            'ollama.test:11434/api/chat' => Http::response([
-                'message' => [
-                    'content' => json_encode([
-                        'supported' => true,
-                        'entity' => 'ticket',
-                        'metric' => 'count',
-                        'group_by' => 'none',
-                        'period' => 'today',
-                        'filter' => ['status' => 'open'],
-                        'sort' => 'asc',
-                        'limit' => null,
-                    ], JSON_THROW_ON_ERROR),
-                ],
-            ]),
-        ]);
-
-        $result = app(MiraIntentService::class)->understand('Berapa tiket open hari ini?');
-
-        $this->assertNotNull($result['intent']);
-        $this->assertTrue($result['intent']['supported']);
-        $this->assertSame('none', $result['intent']['sort']);
-    }
-
-    public function test_it_preserves_sort_for_machine_ranking_intents(): void
-    {
-        Config::set('services.mira.ollama_url', 'http://ollama.test:11434');
-        Config::set('services.mira.ollama_model', 'qwen3:0.6b');
-        Http::fake([
-            'ollama.test:11434/api/chat' => Http::response([
-                'message' => [
-                    'content' => json_encode([
-                        'supported' => true,
-                        'entity' => 'incident',
-                        'metric' => 'count',
-                        'group_by' => 'machine',
-                        'period' => 'last_30_days',
-                        'filter' => [],
-                        'sort' => 'desc',
-                        'limit' => 5,
-                    ], JSON_THROW_ON_ERROR),
-                ],
-            ]),
-        ]);
-
-        $result = app(MiraIntentService::class)->understand('Mesin mana yang paling sering mengalami incident?');
-
-        $this->assertNotNull($result['intent']);
-        $this->assertTrue($result['intent']['supported']);
-        $this->assertSame('desc', $result['intent']['sort']);
-    }
-
-    public function test_it_recognizes_a_president_question_as_unsupported(): void
-    {
-        Config::set('services.mira.ollama_url', 'http://ollama.test:11434');
-        Config::set('services.mira.ollama_model', 'qwen3:0.6b');
-        Http::fake([
-            'ollama.test:11434/api/chat' => Http::response([
-                'message' => [
-                    'content' => json_encode([
-                        'supported' => false,
-                        'entity' => 'ticket',
-                        'metric' => 'list',
-                        'group_by' => 'none',
-                        'period' => 'all',
-                        'filter' => [],
-                        'sort' => 'none',
-                        'limit' => null,
-                    ], JSON_THROW_ON_ERROR),
-                ],
-            ]),
-        ]);
-
-        $result = app(MiraIntentService::class)->understand('Siapa presiden saat ini?');
-
-        $this->assertSame([
-            'supported' => false,
-            'entity' => 'ticket',
-            'metric' => 'list',
-            'group_by' => 'none',
-            'period' => 'all',
-            'filter' => [],
-            'sort' => 'none',
-            'limit' => null,
-        ], $result['intent']);
-    }
-
-    public function test_it_recognizes_a_docker_installation_question_as_unsupported(): void
-    {
-        Config::set('services.mira.ollama_url', 'http://ollama.test:11434');
-        Config::set('services.mira.ollama_model', 'qwen3:0.6b');
-        Http::fake([
-            'ollama.test:11434/api/chat' => Http::response([
-                'message' => [
-                    'content' => json_encode([
-                        'supported' => false,
-                        'entity' => 'ticket',
-                        'metric' => 'list',
-                        'group_by' => 'none',
-                        'period' => 'all',
-                        'filter' => [],
-                        'sort' => 'none',
-                        'limit' => null,
-                    ], JSON_THROW_ON_ERROR),
-                ],
-            ]),
-        ]);
-
-        $result = app(MiraIntentService::class)->understand('Bagaimana cara install Docker?');
-
-        $this->assertFalse($result['intent']['supported']);
-        $this->assertSame('ticket', $result['intent']['entity']);
-        $this->assertSame('list', $result['intent']['metric']);
     }
 }

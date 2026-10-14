@@ -11,77 +11,81 @@ class MiraIntentService
 
     public function understand(string $question): array
     {
-        if ($intent = $this->parseSimpleTicketCount($question)) {
-            return ['intent' => $intent, 'duration_ms' => 0];
-        }
-
         $result = $this->ollama->generateJson([
             [
                 'role' => 'system',
-                'Ubah pertanyaan Maintenance menjadi satu intent JSON sesuai schema. Jangan menjawab, membuat SQL, atau menambahkan kunci. Untuk pertanyaan non-Maintenance gunakan supported=false. Pertanyaan tentang ticket/tiket, incident, machine/mesin, plant, spare part, atau statistik Maintenance didukung. Jumlah tiket open hari ini: {"supported":true,"entity":"ticket","metric":"count","group_by":"none","period":"today","filter":{"status":"open"},"sort":"none","limit":null}. Gunakan metric=count untuk jumlah; status open/terbuka= open, closed/selesai/ditutup=closed; hari ini=today; 7/30/90 hari terakhir=last_7_days/last_30_days/last_90_days. Tanpa pengelompokan, group_by dan sort harus none. Peringkat mesin incident memakai entity=incident, metric=count, group_by=machine, sort=desc. Peringkat jenis masalah memakai group_by=problem_type, sort=desc. Keluarkan JSON saja.',
+                'content' => 'Klasifikasikan permintaan ke route maintenance, general, atau clarify. Keluarkan satu JSON sesuai schema, tanpa SQL. Untuk maintenance, pahami maksud dan variasi bahasa, bukan kecocokan kata persis. "Berapa tiket open hari ini?", "Berapa tiket yang terbuka hari ini?", "Cek jumlah tiket yang masih terbuka hari ini.", "Tolong hitung tiket yang belum selesai hari ini.", dan "Ada berapa ticket yang statusnya open hari ini?" memiliki intent sama: route=maintenance, supported=true, entity=ticket, metric=count, group_by=none, period=today, filter.status=open, sort=none, limit=null. Pertanyaan umum memakai route=general dan jawaban ringkas dalam bahasa pengguna; jangan mengaku punya akses internet, berita terkini, atau data database. Permintaan Maintenance yang ambigu atau kekurangan informasi penting memakai route=clarify dan clarification berisi pertanyaan spesifik. Untuk general/clarify isi intent dengan placeholder: supported=false, entity=ticket, metric=list, group_by=none, period=all, filter={}, sort=none, limit=null. answer atau clarification yang tidak dipakai harus string kosong. Jangan mengarang intent Maintenance untuk pertanyaan umum.',
             ],
             ['role' => 'user', 'content' => mb_substr($question, 0, 500)],
         ], self::schema());
 
         try {
-            $intent = json_decode($result['content'], true, 32, JSON_THROW_ON_ERROR);
+            $response = json_decode($result['content'], true, 32, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
-            return ['intent' => null, 'duration_ms' => $result['duration_ms']];
+            return $this->invalidResult($result['duration_ms']);
         }
 
-        if (! is_array($intent) || ! $this->isValid($intent)) {
-            return ['intent' => null, 'duration_ms' => $result['duration_ms']];
+        if (! is_array($response) || ! $this->isValidResponse($response)) {
+            return $this->invalidResult($result['duration_ms']);
         }
 
-        if ($intent['group_by'] === 'none') {
-            $intent['sort'] = 'none';
+        if ($response['group_by'] === 'none') {
+            $response['sort'] = 'none';
         }
-
-        if ($intent['supported'] === false) {
-            $intent = [
-                'supported' => false,
-                'entity' => 'ticket',
-                'metric' => 'list',
-                'group_by' => 'none',
-                'period' => 'all',
-                'filter' => [],
-                'sort' => 'none',
-                'limit' => null,
-            ];
-        }
-
-        return ['intent' => $intent, 'duration_ms' => $result['duration_ms']];
-    }
-
-    private function parseSimpleTicketCount(string $question): ?array
-    {
-        $text = mb_strtolower(trim(preg_replace('/[?!.,]+$/u', '', $question) ?? $question));
-        $pattern = '/^(?:berapa|jumlah|hitung)\s+(?:jumlah\s+)?(?:tiket|ticket)\s+(open|terbuka|closed|ditutup|selesai)\s+(hari ini|dalam 7 hari terakhir|7 hari terakhir|dalam 30 hari terakhir|30 hari terakhir)$/u';
-
-        if (preg_match($pattern, $text, $matches) !== 1) {
-            return null;
-        }
-
-        $status = match ($matches[1]) {
-            'open', 'terbuka' => 'open',
-            default => 'closed',
-        };
-        $period = match ($matches[2]) {
-            'hari ini' => 'today',
-            '7 hari terakhir', 'dalam 7 hari terakhir' => 'last_7_days',
-            default => 'last_30_days',
-        };
 
         return [
-            'supported' => true,
-            'entity' => 'ticket',
-            'metric' => 'count',
-            'group_by' => 'none',
-            'period' => $period,
-            'filter' => ['status' => $status],
-            'sort' => 'none',
-            'limit' => null,
+            'route' => $response['route'],
+            'intent' => $response['route'] === 'maintenance' ? $this->intentFields($response) : null,
+            'answer' => $response['answer'],
+            'clarification' => $response['clarification'],
+            'duration_ms' => $result['duration_ms'],
         ];
+    }
+
+    private function invalidResult(int $durationMs): array
+    {
+        return ['route' => 'invalid', 'intent' => null, 'answer' => '', 'clarification' => '', 'duration_ms' => $durationMs];
+    }
+
+    private function intentFields(array $response): array
+    {
+        return array_intersect_key($response, array_flip(['supported', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit']));
+    }
+
+    public function isValidResponse(array $response): bool
+    {
+        $keys = ['route', 'supported', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit', 'answer', 'clarification'];
+        $intent = $this->intentFields($response);
+
+        if (array_diff(array_keys($response), $keys) !== []
+            || count($intent) !== 8
+            || ! $this->isValid($intent)
+            || ! in_array($response['route'] ?? null, ['maintenance', 'general', 'clarify'], true)
+            || ! is_string($response['answer'] ?? null)
+            || ! is_string($response['clarification'] ?? null)) {
+            return false;
+        }
+
+        if ($response['route'] === 'maintenance') {
+            return $response['supported'] === true;
+        }
+
+        $placeholderIntent = $response['supported'] === false
+            && $response['entity'] === 'ticket'
+            && $response['metric'] === 'list'
+            && $response['group_by'] === 'none'
+            && $response['period'] === 'all'
+            && $response['filter'] === []
+            && $response['sort'] === 'none'
+            && $response['limit'] === null;
+
+        if (! $placeholderIntent) {
+            return false;
+        }
+
+        return $response['route'] === 'general'
+            ? trim($response['answer']) !== ''
+            : trim($response['clarification']) !== '';
     }
 
     public function isValid(array $intent): bool
@@ -116,6 +120,7 @@ class MiraIntentService
         return [
             'type' => 'object',
             'properties' => [
+                'route' => ['type' => 'string', 'enum' => ['maintenance', 'general', 'clarify']],
                 'supported' => ['type' => 'boolean'],
                 'entity' => ['type' => 'string', 'enum' => ['incident', 'ticket', 'machine', 'plant', 'spare_part']],
                 'metric' => ['type' => 'string', 'enum' => ['count', 'average', 'list', 'status']],
@@ -133,8 +138,10 @@ class MiraIntentService
                 ],
                 'sort' => ['type' => 'string', 'enum' => ['asc', 'desc', 'none']],
                 'limit' => ['type' => ['integer', 'null']],
+                'answer' => ['type' => 'string'],
+                'clarification' => ['type' => 'string'],
             ],
-            'required' => ['supported', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit'],
+            'required' => ['route', 'supported', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit', 'answer', 'clarification'],
             'additionalProperties' => false,
         ];
     }

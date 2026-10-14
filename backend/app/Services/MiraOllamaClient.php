@@ -49,45 +49,6 @@ class MiraOllamaClient
         ];
     }
 
-    public function chat(array $messages): array
-    {
-        $baseUrl = rtrim((string) config('services.mira.ollama_url'), '/');
-        $model = (string) config('services.mira.ollama_model');
-
-        if ($baseUrl === '' || $model === '') {
-            throw new RuntimeException('MIRA Ollama configuration is incomplete.');
-        }
-
-        $startedAt = microtime(true);
-        $response = Http::connectTimeout(4)->timeout(90)->post($baseUrl.'/api/chat', [
-            'model' => $model,
-            'messages' => $messages,
-            'stream' => false,
-            'think' => false,
-            'keep_alive' => config('services.mira.ollama_keep_alive', '5m'),
-            'options' => [
-                'num_ctx' => 2048,
-                'num_predict' => 256,
-                'temperature' => 0,
-            ],
-        ]);
-
-        if (! $response->successful()) {
-            throw new RuntimeException('MIRA Ollama request failed with HTTP '.$response->status().'.');
-        }
-
-        $content = $response->json('message.content');
-
-        if (! is_string($content) || trim($content) === '') {
-            throw new RuntimeException('MIRA Ollama returned an empty response.');
-        }
-
-        return [
-            'content' => trim($content),
-            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
-        ];
-    }
-
     public function check(): void
     {
         $baseUrl = rtrim((string) config('services.mira.ollama_url'), '/');

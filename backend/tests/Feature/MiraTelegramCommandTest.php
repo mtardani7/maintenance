@@ -38,7 +38,10 @@ class MiraTelegramCommandTest extends TestCase
         ];
         $intents = Mockery::mock(MiraIntentService::class);
         $intents->shouldReceive('understand')->once()->with($question)->andReturn([
+            'route' => 'maintenance',
             'intent' => $intent,
+            'answer' => '',
+            'clarification' => '',
             'duration_ms' => 500,
         ]);
         $intents->shouldReceive('isValid')->once()->andReturnTrue();
@@ -72,6 +75,7 @@ class MiraTelegramCommandTest extends TestCase
     {
         $intents = Mockery::mock(MiraIntentService::class);
         $intents->shouldReceive('understand')->once()->andReturn([
+            'route' => 'maintenance',
             'intent' => [
                 'supported' => true,
                 'entity' => 'ticket',
@@ -82,6 +86,8 @@ class MiraTelegramCommandTest extends TestCase
                 'sort' => 'none',
                 'limit' => null,
             ],
+            'answer' => '',
+            'clarification' => '',
             'duration_ms' => 500,
         ]);
         $intents->shouldReceive('isValid')->once()->andReturnTrue();
