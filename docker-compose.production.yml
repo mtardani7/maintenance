@@ -20,6 +20,25 @@ services:
     volumes:
       - maintenance-backend-storage:/var/www/html/storage
 
+  maintenance-backend-migrations:
+    image: maintenance-backend:latest
+    restart: unless-stopped
+    command: ["php", "artisan", "migrate", "--force"]
+    env_file: ./backend/.env
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: qa-postgres
+      DB_PORT: 5432
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - maintenance-network
+      - qa-system-network
+    volumes:
+      - maintenance-backend-storage:/var/www/html/storage
+    depends_on:
+      maintenance-backend: { condition: service_started }
+
   maintenance-telegram:
     image: maintenance-backend:latest
     restart: unless-stopped

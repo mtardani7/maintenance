@@ -14,7 +14,25 @@ class MiraIntentService
         $result = $this->ollama->generateJson([
             [
                 'role' => 'system',
-                'content' => 'Klasifikasikan pertanyaan operator sebagai supported hanya jika benar-benar berhubungan dengan Maintenance System: ticket, incident, machine, plant, spare part, maintenance status, atau statistik maintenance. Pertanyaan umum seperti tokoh/presiden, cuaca, harga barang, atau cara memasang software adalah di luar scope: supported=false dan gunakan placeholder entity=ticket, metric=list, group_by=none, period=all, filter={}, sort=none, limit=null. Jangan menjawab pertanyaan dan jangan membuat SQL. Untuk pertanyaan dalam scope, supported=true. Untuk hitungan tiket gunakan entity ticket, metric count, group_by none; kata open menjadi filter.status open. Untuk peringkat mesin dari incident gunakan entity incident, metric count, group_by machine. Untuk peringkat jenis masalah gunakan entity incident, metric count, group_by problem_type. Gunakan sort none jika group_by none dan asc/desc hanya untuk peringkat. Jika filter tidak ada gunakan {} dan limit null. Status gunakan open, closed, atau resolved.',
+                'content' => 'Tugasmu mengubah pertanyaan menjadi intent JSON sesuai schema. Jangan menjawab dengan kalimat dan jangan membuat SQL.
+
+                Pertanyaan tentang ticket, incident, machine, plant, spare_part, status maintenance, dan statistik maintenance adalah supported=true. Gunakan supported=false hanya jika pertanyaan jelas tidak berhubungan dengan Maintenance System.
+
+                Contoh: Berapa tiket open hari ini? menghasilkan supported=true, entity=ticket, metric=count, group_by=none, period=today, filter={"status":"open"}, sort=none, limit=null.
+
+                Contoh: Siapa presiden saat ini? menghasilkan supported=false, entity=ticket, metric=list, group_by=none, period=all, filter={}, sort=none, limit=null.
+
+                Aturan:
+                - Pertanyaan jumlah menggunakan metric=count.
+                - Open atau terbuka berarti filter.status=open.
+                - Closed atau ditutup berarti filter.status=closed.
+                - Hari ini berarti period=today.
+                - 7, 30, atau 90 hari terakhir berarti last_7_days, last_30_days, atau last_90_days.
+                - Hitungan tanpa pengelompokan menggunakan group_by=none dan sort=none.
+                - Peringkat mesin berdasarkan incident menggunakan entity=incident, metric=count, group_by=machine, sort=desc.
+                - Peringkat jenis masalah menggunakan entity=incident, metric=count, group_by=problem_type, sort=desc.
+
+                Keluarkan JSON saja sesuai schema.',
             ],
             ['role' => 'user', 'content' => mb_substr($question, 0, 500)],
         ], self::schema());
