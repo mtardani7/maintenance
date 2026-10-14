@@ -11,28 +11,14 @@ class MiraIntentService
 
     public function understand(string $question): array
     {
+        if ($intent = $this->parseSimpleTicketCount($question)) {
+            return ['intent' => $intent, 'duration_ms' => 0];
+        }
+
         $result = $this->ollama->generateJson([
             [
                 'role' => 'system',
-                'content' => 'Tugasmu mengubah pertanyaan menjadi intent JSON sesuai schema. Jangan menjawab dengan kalimat dan jangan membuat SQL.
-
-                Pertanyaan tentang ticket, incident, machine, plant, spare_part, status maintenance, dan statistik maintenance adalah supported=true. Gunakan supported=false hanya jika pertanyaan jelas tidak berhubungan dengan Maintenance System.
-
-                Contoh: Berapa tiket open hari ini? menghasilkan supported=true, entity=ticket, metric=count, group_by=none, period=today, filter={"status":"open"}, sort=none, limit=null.
-
-                Contoh: Siapa presiden saat ini? menghasilkan supported=false, entity=ticket, metric=list, group_by=none, period=all, filter={}, sort=none, limit=null.
-
-                Aturan:
-                - Pertanyaan jumlah menggunakan metric=count.
-                - Open atau terbuka berarti filter.status=open.
-                - Closed atau ditutup berarti filter.status=closed.
-                - Hari ini berarti period=today.
-                - 7, 30, atau 90 hari terakhir berarti last_7_days, last_30_days, atau last_90_days.
-                - Hitungan tanpa pengelompokan menggunakan group_by=none dan sort=none.
-                - Peringkat mesin berdasarkan incident menggunakan entity=incident, metric=count, group_by=machine, sort=desc.
-                - Peringkat jenis masalah menggunakan entity=incident, metric=count, group_by=problem_type, sort=desc.
-
-                Keluarkan JSON saja sesuai schema.',
+                'Ubah pertanyaan Maintenance menjadi satu intent JSON sesuai schema. Jangan menjawab, membuat SQL, atau menambahkan kunci. Untuk pertanyaan non-Maintenance gunakan supported=false. Pertanyaan tentang ticket/tiket, incident, machine/mesin, plant, spare part, atau statistik Maintenance didukung. Jumlah tiket open hari ini: {"supported":true,"entity":"ticket","metric":"count","group_by":"none","period":"today","filter":{"status":"open"},"sort":"none","limit":null}. Gunakan metric=count untuk jumlah; status open/terbuka= open, closed/selesai/ditutup=closed; hari ini=today; 7/30/90 hari terakhir=last_7_days/last_30_days/last_90_days. Tanpa pengelompokan, group_by dan sort harus none. Peringkat mesin incident memakai entity=incident, metric=count, group_by=machine, sort=desc. Peringkat jenis masalah memakai group_by=problem_type, sort=desc. Keluarkan JSON saja.',
             ],
             ['role' => 'user', 'content' => mb_substr($question, 0, 500)],
         ], self::schema());
@@ -65,6 +51,37 @@ class MiraIntentService
         }
 
         return ['intent' => $intent, 'duration_ms' => $result['duration_ms']];
+    }
+
+    private function parseSimpleTicketCount(string $question): ?array
+    {
+        $text = mb_strtolower(trim(preg_replace('/[?!.,]+$/u', '', $question) ?? $question));
+        $pattern = '/^(?:berapa|jumlah|hitung)\s+(?:jumlah\s+)?(?:tiket|ticket)\s+(open|terbuka|closed|ditutup|selesai)\s+(hari ini|dalam 7 hari terakhir|7 hari terakhir|dalam 30 hari terakhir|30 hari terakhir)$/u';
+
+        if (preg_match($pattern, $text, $matches) !== 1) {
+            return null;
+        }
+
+        $status = match ($matches[1]) {
+            'open', 'terbuka' => 'open',
+            default => 'closed',
+        };
+        $period = match ($matches[2]) {
+            'hari ini' => 'today',
+            '7 hari terakhir', 'dalam 7 hari terakhir' => 'last_7_days',
+            default => 'last_30_days',
+        };
+
+        return [
+            'supported' => true,
+            'entity' => 'ticket',
+            'metric' => 'count',
+            'group_by' => 'none',
+            'period' => $period,
+            'filter' => ['status' => $status],
+            'sort' => 'none',
+            'limit' => null,
+        ];
     }
 
     public function isValid(array $intent): bool

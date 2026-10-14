@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Services\MiraAssistantService;
 use App\Services\MiraIntentService;
+use App\Services\MiraOllamaClient;
 use App\Services\MiraQueryService;
 use App\Services\MiraResponseFormatter;
 use Mockery;
@@ -37,6 +38,7 @@ class MiraAssistantServiceTest extends TestCase
             'intent' => $intent,
             'duration_ms' => 10,
         ]);
+        $intents->shouldReceive('isValid')->once()->with($intent)->andReturnTrue();
 
         $queries = Mockery::mock(MiraQueryService::class);
         $queries->shouldReceive('run')->once()->with($intent)->andReturn($queryResult);
@@ -70,6 +72,98 @@ class MiraAssistantServiceTest extends TestCase
         $this->assertSame('MIRA belum memahami pertanyaan tersebut.', $result['answer']);
     }
 
+    public function test_greeting_returns_direct_reply_without_ai_or_database(): void
+    {
+        $intents = Mockery::mock(MiraIntentService::class);
+        $intents->shouldNotReceive('understand');
+        $queries = Mockery::mock(MiraQueryService::class);
+        $queries->shouldNotReceive('run');
+        $formatter = Mockery::mock(MiraResponseFormatter::class);
+        $formatter->shouldNotReceive('format');
+        $ollama = Mockery::mock(MiraOllamaClient::class);
+        $ollama->shouldNotReceive('chat');
+
+        $result = (new MiraAssistantService($intents, $queries, $formatter, $ollama))->answer('HaLo!!!');
+
+        $this->assertSame('Halo! Saya MIRA. Ada yang bisa saya bantu?', $result['answer']);
+        $this->assertSame(0, $result['intent_ms']);
+    }
+
+    public function test_greeting_prefix_is_removed_before_maintenance_routing(): void
+    {
+        $intents = Mockery::mock(MiraIntentService::class);
+        $intents->shouldReceive('understand')->once()->with('berapa tiket open hari ini?')->andReturn([
+            'intent' => [
+                'supported' => true, 'entity' => 'ticket', 'metric' => 'count', 'group_by' => 'none',
+                'period' => 'today', 'filter' => ['status' => 'open'], 'sort' => 'none', 'limit' => null,
+            ],
+            'duration_ms' => 0,
+        ]);
+        $intents->shouldReceive('isValid')->once()->andReturnTrue();
+        $queries = Mockery::mock(MiraQueryService::class);
+        $queries->shouldReceive('run')->once()->andReturn(null);
+        $formatter = Mockery::mock(MiraResponseFormatter::class);
+        $ollama = Mockery::mock(MiraOllamaClient::class);
+        $ollama->shouldNotReceive('chat');
+
+        (new MiraAssistantService($intents, $queries, $formatter, $ollama))->answer('Halo, berapa tiket open hari ini?');
+    }
+
+    public function test_general_question_uses_chat_without_intent_or_database_query(): void
+    {
+        $intents = Mockery::mock(MiraIntentService::class);
+        $intents->shouldNotReceive('understand');
+        $queries = Mockery::mock(MiraQueryService::class);
+        $queries->shouldNotReceive('run');
+        $formatter = Mockery::mock(MiraResponseFormatter::class);
+        $formatter->shouldNotReceive('format');
+        $ollama = Mockery::mock(MiraOllamaClient::class);
+        $ollama->shouldReceive('chat')->once()->with(Mockery::on(fn ($messages) => count($messages) === 2
+            && ! array_key_exists('format', $messages[0])
+            && $messages[1]['content'] === 'Bagaimana cara kerja VPN?'))->andReturn([
+                'content' => 'VPN membuat koneksi terenkripsi.', 'duration_ms' => 20,
+            ]);
+
+        $result = (new MiraAssistantService($intents, $queries, $formatter, $ollama))->answer('Bagaimana cara kerja VPN?');
+
+        $this->assertSame('VPN membuat koneksi terenkripsi.', $result['answer']);
+        $this->assertNull($result['query_type']);
+    }
+
+    public function test_supported_false_never_executes_database_query(): void
+    {
+        $intent = [
+            'supported' => false, 'entity' => 'ticket', 'metric' => 'list', 'group_by' => 'none',
+            'period' => 'all', 'filter' => [], 'sort' => 'none', 'limit' => null,
+        ];
+        $intents = Mockery::mock(MiraIntentService::class);
+        $intents->shouldReceive('understand')->once()->andReturn(['intent' => $intent, 'duration_ms' => 1]);
+        $intents->shouldReceive('isValid')->once()->andReturnTrue();
+        $queries = Mockery::mock(MiraQueryService::class);
+        $queries->shouldNotReceive('run');
+        $formatter = Mockery::mock(MiraResponseFormatter::class);
+        $ollama = Mockery::mock(MiraOllamaClient::class);
+
+        $result = (new MiraAssistantService($intents, $queries, $formatter, $ollama))->answer('Berapa tiket alien di bulan Mars?');
+
+        $this->assertFalse($result['understood']);
+    }
+
+    public function test_invalid_intent_never_executes_database_query(): void
+    {
+        $intents = Mockery::mock(MiraIntentService::class);
+        $intents->shouldReceive('understand')->once()->andReturn(['intent' => null, 'duration_ms' => 1]);
+        $queries = Mockery::mock(MiraQueryService::class);
+        $queries->shouldNotReceive('run');
+        $formatter = Mockery::mock(MiraResponseFormatter::class);
+        $ollama = Mockery::mock(MiraOllamaClient::class);
+
+        $result = (new MiraAssistantService($intents, $queries, $formatter, $ollama))->answer('Berapa jumlah tiket maintenance hari ini?');
+
+        $this->assertFalse($result['understood']);
+        $this->assertNull($result['intent']);
+    }
+
     public function test_it_returns_fixed_scope_message_without_querying_for_unsupported_intents(): void
     {
         $intent = [
@@ -87,6 +181,7 @@ class MiraAssistantServiceTest extends TestCase
             'intent' => $intent,
             'duration_ms' => 10,
         ]);
+        $intents->shouldReceive('isValid')->once()->andReturnTrue();
 
         $queries = Mockery::mock(MiraQueryService::class);
         $queries->shouldNotReceive('run');
@@ -94,7 +189,7 @@ class MiraAssistantServiceTest extends TestCase
         $formatter = Mockery::mock(MiraResponseFormatter::class);
         $formatter->shouldNotReceive('format');
 
-        $result = (new MiraAssistantService($intents, $queries, $formatter))->answer('Siapa presiden Indonesia?');
+        $result = (new MiraAssistantService($intents, $queries, $formatter))->answer('Apa status tiket terbaru?');
 
         $this->assertFalse($result['understood']);
         $this->assertFalse($result['intent']['supported']);
@@ -111,6 +206,7 @@ class MiraAssistantServiceTest extends TestCase
 
         $intents = Mockery::mock(MiraIntentService::class);
         $intents->shouldReceive('understand')->once()->andReturn(['intent' => $intent, 'duration_ms' => 10]);
+        $intents->shouldReceive('isValid')->once()->andReturnTrue();
 
         $queries = Mockery::mock(MiraQueryService::class);
         $queries->shouldReceive('run')->once()->andReturn($queryResult);

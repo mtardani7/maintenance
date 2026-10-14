@@ -41,6 +41,7 @@ class MiraTelegramCommandTest extends TestCase
             'intent' => $intent,
             'duration_ms' => 500,
         ]);
+        $intents->shouldReceive('isValid')->once()->andReturnTrue();
         $this->app->instance(MiraIntentService::class, $intents);
 
         $queries = Mockery::mock(MiraQueryService::class);
@@ -83,6 +84,7 @@ class MiraTelegramCommandTest extends TestCase
             ],
             'duration_ms' => 500,
         ]);
+        $intents->shouldReceive('isValid')->once()->andReturnTrue();
         $this->app->instance(MiraIntentService::class, $intents);
 
         $queries = Mockery::mock(MiraQueryService::class);

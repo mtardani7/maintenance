@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\MiraIntentService;
+use App\Services\MiraOllamaClient;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -30,7 +31,7 @@ class MiraIntentServiceTest extends TestCase
             ]),
         ]);
 
-        $result = app(MiraIntentService::class)->understand('Berapa tiket open hari ini?');
+        $result = app(MiraIntentService::class)->understand('Berapa jumlah tiket maintenance hari ini?');
 
         $this->assertSame([
             'supported' => true,
@@ -48,11 +49,49 @@ class MiraIntentServiceTest extends TestCase
             return $request['format']['type'] === 'object'
                 && $request['stream'] === false
                 && $request['think'] === false
-                && $request['keep_alive'] === 0
+                && $request['keep_alive'] === '5m'
                 && $request['options']['num_ctx'] === 2048
                 && $request['options']['num_predict'] === 256
                 && $request['options']['temperature'] === 0;
         });
+    }
+
+    public function test_simple_open_ticket_count_is_parsed_without_calling_ollama(): void
+    {
+        Http::fake();
+
+        $result = app(MiraIntentService::class)->understand('Berapa tiket open hari ini?');
+
+        $this->assertSame([
+            'supported' => true,
+            'entity' => 'ticket',
+            'metric' => 'count',
+            'group_by' => 'none',
+            'period' => 'today',
+            'filter' => ['status' => 'open'],
+            'sort' => 'none',
+            'limit' => null,
+        ], $result['intent']);
+        Http::assertNothingSent();
+    }
+
+    public function test_general_chat_payload_uses_keep_alive_without_json_schema(): void
+    {
+        Config::set('services.mira.ollama_url', 'http://ollama.test:11434');
+        Config::set('services.mira.ollama_model', 'qwen3:0.6b');
+        Http::fake(['ollama.test:11434/api/chat' => Http::response([
+            'message' => ['content' => 'VPN mengenkripsi koneksi.'],
+        ])]);
+
+        $result = app(MiraOllamaClient::class)->chat([
+            ['role' => 'user', 'content' => 'Apa itu VPN?'],
+        ]);
+
+        $this->assertSame('VPN mengenkripsi koneksi.', $result['content']);
+        Http::assertSent(fn ($request): bool => $request['keep_alive'] === '5m'
+            && $request['think'] === false
+            && $request['options']['temperature'] === 0
+            && ! array_key_exists('format', $request->data()));
     }
 
     public function test_it_rejects_an_intent_that_contains_sql(): void
