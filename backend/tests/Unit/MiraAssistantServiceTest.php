@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Services\MiraAssistantService;
 use App\Services\MiraIntentService;
+use App\Services\MiraOllamaClient;
 use App\Services\MiraQueryService;
 use App\Services\MiraResponseFormatter;
 use Mockery;
@@ -77,14 +78,20 @@ class MiraAssistantServiceTest extends TestCase
     {
         $intents = Mockery::mock(MiraIntentService::class);
         $intents->shouldReceive('understand')->once()->with('Bagaimana cara kerja VPN?')->andReturn([
-            'route' => 'general', 'intent' => null, 'answer' => 'VPN mengenkripsi koneksi.', 'clarification' => '', 'duration_ms' => 20,
+            'route' => 'general', 'intent' => null, 'clarification' => '', 'duration_ms' => 20,
         ]);
         $queries = Mockery::mock(MiraQueryService::class);
         $queries->shouldNotReceive('run');
         $formatter = Mockery::mock(MiraResponseFormatter::class);
         $formatter->shouldNotReceive('format');
+        $ollama = Mockery::mock(MiraOllamaClient::class);
+        $ollama->shouldReceive('chat')->once()->with(Mockery::on(fn ($messages) => count($messages) === 2
+            && ! array_key_exists('format', $messages[0])
+            && $messages[1]['content'] === 'Bagaimana cara kerja VPN?'))->andReturn([
+                'content' => 'VPN mengenkripsi koneksi.', 'duration_ms' => 25,
+            ]);
 
-        $result = (new MiraAssistantService($intents, $queries, $formatter))->answer('Bagaimana cara kerja VPN?');
+        $result = (new MiraAssistantService($intents, $queries, $formatter, $ollama))->answer('Bagaimana cara kerja VPN?');
 
         $this->assertSame('VPN mengenkripsi koneksi.', $result['answer']);
         $this->assertNull($result['query_type']);

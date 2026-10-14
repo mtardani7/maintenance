@@ -11,6 +11,7 @@ class MiraAssistantService
         private readonly MiraIntentService $intents,
         private readonly MiraQueryService $queries,
         private readonly MiraResponseFormatter $formatter,
+        private readonly ?MiraOllamaClient $ollama = null,
     ) {}
 
     public function answer(string $question): array
@@ -36,9 +37,26 @@ class MiraAssistantService
         $intentMs = $routing['duration_ms'] ?? 0;
 
         if (($routing['route'] ?? 'invalid') === 'general') {
+            try {
+                if ($this->ollama === null) {
+                    throw new \RuntimeException('MIRA chat client is unavailable.');
+                }
+
+                $chat = $this->ollama->chat([
+                    ['role' => 'system', 'content' => 'Jawab pertanyaan umum dengan ringkas dan akurat dalam bahasa pengguna, Bahasa Indonesia sebagai default. Jangan mengaku memeriksa database, internet, atau berita terkini.'],
+                    ['role' => 'user', 'content' => mb_substr($question, 0, 1000)],
+                ]);
+
+                $answer = $chat['content'];
+            } catch (Throwable $exception) {
+                Log::warning('MIRA general chat failed.', ['exception' => $exception::class]);
+
+                return $this->safeClarification('MIRA belum dapat menjawab saat ini. Silakan coba lagi.', $intentMs, $startedAt);
+            }
+
             return [
                 'understood' => true,
-                'answer' => $routing['answer'],
+                'answer' => $answer,
                 'intent' => null,
                 'query_type' => null,
                 'intent_ms' => $intentMs,

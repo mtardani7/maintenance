@@ -14,7 +14,7 @@ class MiraIntentService
         $result = $this->ollama->generateJson([
             [
                 'role' => 'system',
-                'content' => 'Klasifikasikan permintaan ke route maintenance, general, atau clarify. Keluarkan satu JSON sesuai schema, tanpa SQL. Untuk maintenance, pahami maksud dan variasi bahasa, bukan kecocokan kata persis. "Berapa tiket open hari ini?", "Berapa tiket yang terbuka hari ini?", "Cek jumlah tiket yang masih terbuka hari ini.", "Tolong hitung tiket yang belum selesai hari ini.", dan "Ada berapa ticket yang statusnya open hari ini?" memiliki intent sama: route=maintenance, supported=true, entity=ticket, metric=count, group_by=none, period=today, filter.status=open, sort=none, limit=null. Pertanyaan umum memakai route=general dan jawaban ringkas dalam bahasa pengguna; jangan mengaku punya akses internet, berita terkini, atau data database. Permintaan Maintenance yang ambigu atau kekurangan informasi penting memakai route=clarify dan clarification berisi pertanyaan spesifik. Untuk general/clarify isi intent dengan placeholder: supported=false, entity=ticket, metric=list, group_by=none, period=all, filter={}, sort=none, limit=null. answer atau clarification yang tidak dipakai harus string kosong. Jangan mengarang intent Maintenance untuk pertanyaan umum.',
+                'content' => 'Tentukan apakah pertanyaan terkait data Maintenance, umum, atau perlu klarifikasi. Keluarkan hanya JSON sesuai schema; jangan menjawab pertanyaan umum dan jangan membuat SQL. Jika Maintenance, supported=true, clarify=false dan isi intent yang tepat. Contoh "Berapa tiket open hari ini?", "Berapa tiket yang terbuka hari ini?", "Cek jumlah tiket yang masih terbuka hari ini.", "Tolong hitung tiket yang belum selesai hari ini.", "Ada berapa ticket yang statusnya open hari ini?" semuanya: entity=ticket, metric=count, group_by=none, period=today, filter.status=open, sort=none, limit=null. Pahami sinonim dan variasi bahasa, jangan perluas aturan dengan mencocokkan kalimat persis. Jumlah=count; status terbuka/belum selesai=open; closed/selesai/ditutup=closed; hari ini=today; periode 7/30/90 hari gunakan last_7_days/last_30_days/last_90_days. Untuk peringkat mesin incident gunakan entity=incident, metric=count, group_by=machine, sort=desc. Pertanyaan non-Maintenance: supported=false, clarify=false, dan gunakan intent placeholder entity=ticket, metric=list, group_by=none, period=all, filter={}, sort=none, limit=null. Pertanyaan Maintenance yang ambigu/kekurangan detail: supported=false, clarify=true, placeholder intent yang sama, dan clarification berupa satu pertanyaan spesifik. Untuk semua kasus lain, clarification kosong. Jangan mengarang intent tiket untuk pertanyaan umum.',
             ],
             ['role' => 'user', 'content' => mb_substr($question, 0, 500)],
         ], self::schema());
@@ -33,10 +33,11 @@ class MiraIntentService
             $response['sort'] = 'none';
         }
 
+        $route = $response['supported'] ? 'maintenance' : ($response['clarify'] ? 'clarify' : 'general');
+
         return [
-            'route' => $response['route'],
-            'intent' => $response['route'] === 'maintenance' ? $this->intentFields($response) : null,
-            'answer' => $response['answer'],
+            'route' => $route,
+            'intent' => $route === 'maintenance' ? $this->intentFields($response) : null,
             'clarification' => $response['clarification'],
             'duration_ms' => $result['duration_ms'],
         ];
@@ -44,7 +45,7 @@ class MiraIntentService
 
     private function invalidResult(int $durationMs): array
     {
-        return ['route' => 'invalid', 'intent' => null, 'answer' => '', 'clarification' => '', 'duration_ms' => $durationMs];
+        return ['route' => 'invalid', 'intent' => null, 'clarification' => '', 'duration_ms' => $durationMs];
     }
 
     private function intentFields(array $response): array
@@ -54,24 +55,23 @@ class MiraIntentService
 
     public function isValidResponse(array $response): bool
     {
-        $keys = ['route', 'supported', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit', 'answer', 'clarification'];
+        $keys = ['supported', 'clarify', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit', 'clarification'];
         $intent = $this->intentFields($response);
 
         if (array_diff(array_keys($response), $keys) !== []
             || count($intent) !== 8
             || ! $this->isValid($intent)
-            || ! in_array($response['route'] ?? null, ['maintenance', 'general', 'clarify'], true)
-            || ! is_string($response['answer'] ?? null)
+            || ! is_bool($response['supported'] ?? null)
+            || ! is_bool($response['clarify'] ?? null)
             || ! is_string($response['clarification'] ?? null)) {
             return false;
         }
 
-        if ($response['route'] === 'maintenance') {
-            return $response['supported'] === true;
+        if ($response['supported'] === true) {
+            return $response['clarify'] === false && $response['clarification'] === '';
         }
 
-        $placeholderIntent = $response['supported'] === false
-            && $response['entity'] === 'ticket'
+        $isPlaceholder = $response['entity'] === 'ticket'
             && $response['metric'] === 'list'
             && $response['group_by'] === 'none'
             && $response['period'] === 'all'
@@ -79,13 +79,13 @@ class MiraIntentService
             && $response['sort'] === 'none'
             && $response['limit'] === null;
 
-        if (! $placeholderIntent) {
+        if (! $isPlaceholder) {
             return false;
         }
 
-        return $response['route'] === 'general'
-            ? trim($response['answer']) !== ''
-            : trim($response['clarification']) !== '';
+        return $response['clarify']
+            ? trim($response['clarification']) !== ''
+            : $response['clarification'] === '';
     }
 
     public function isValid(array $intent): bool
@@ -120,8 +120,8 @@ class MiraIntentService
         return [
             'type' => 'object',
             'properties' => [
-                'route' => ['type' => 'string', 'enum' => ['maintenance', 'general', 'clarify']],
                 'supported' => ['type' => 'boolean'],
+                'clarify' => ['type' => 'boolean'],
                 'entity' => ['type' => 'string', 'enum' => ['incident', 'ticket', 'machine', 'plant', 'spare_part']],
                 'metric' => ['type' => 'string', 'enum' => ['count', 'average', 'list', 'status']],
                 'group_by' => ['type' => 'string', 'enum' => ['machine', 'plant', 'problem_type', 'executor', 'none']],
@@ -138,10 +138,9 @@ class MiraIntentService
                 ],
                 'sort' => ['type' => 'string', 'enum' => ['asc', 'desc', 'none']],
                 'limit' => ['type' => ['integer', 'null']],
-                'answer' => ['type' => 'string'],
                 'clarification' => ['type' => 'string'],
             ],
-            'required' => ['route', 'supported', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit', 'answer', 'clarification'],
+            'required' => ['supported', 'clarify', 'entity', 'metric', 'group_by', 'period', 'filter', 'sort', 'limit', 'clarification'],
             'additionalProperties' => false,
         ];
     }
