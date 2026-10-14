@@ -78,6 +78,11 @@ class MiraTelegramCommand extends Command
                     $messages->handle($telegram, $updateId, $message);
                 }
 
+                $callback = $update['callback_query'] ?? null;
+                if (is_array($callback)) {
+                    $messages->handleCallback($telegram, $updateId, $callback);
+                }
+
                 $offset = $updateId + 1;
 
                 try {

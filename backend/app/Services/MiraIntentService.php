@@ -14,7 +14,7 @@ class MiraIntentService
         $result = $this->ollama->generateJson([
             [
                 'role' => 'system',
-                'content' => 'Tentukan apakah pertanyaan terkait data Maintenance, umum, atau perlu klarifikasi. Keluarkan hanya JSON sesuai schema; jangan menjawab pertanyaan umum dan jangan membuat SQL. Jika Maintenance, supported=true, clarify=false dan isi intent yang tepat. Contoh "Berapa tiket open hari ini?", "Berapa tiket yang terbuka hari ini?", "Cek jumlah tiket yang masih terbuka hari ini.", "Tolong hitung tiket yang belum selesai hari ini.", "Ada berapa ticket yang statusnya open hari ini?" semuanya: entity=ticket, metric=count, group_by=none, period=today, date_basis=none, filter.status=open, sort=none, limit=null. Ini menghitung seluruh tiket yang saat ini OPEN; kata hari ini tidak berarti tiket dibuat hari ini. Hanya gunakan date_basis=created_at jika pengguna menanyakan tiket yang dibuat/diajukan pada periode itu. Gunakan date_basis=closed_at jika menanyakan tiket yang ditutup/selesai pada periode itu; statusnya closed. Untuk status saat ini tanpa waktu pembuatan/penutupan gunakan date_basis=none dan period=all. Untuk incident, gunakan date_basis=created_at saat periode diminta. Jumlah=count; status terbuka/belum selesai=open; hari ini=today; periode 7/30/90 hari gunakan last_7_days/last_30_days/last_90_days. Untuk peringkat mesin incident gunakan entity=incident, metric=count, group_by=machine, sort=desc. Pertanyaan non-Maintenance: supported=false, clarify=false, gunakan intent placeholder entity=ticket, metric=list, group_by=none, period=all, date_basis=none, filter={}, sort=none, limit=null. Pertanyaan Maintenance yang ambigu/kekurangan detail: supported=false, clarify=true, placeholder intent yang sama, dan clarification berupa satu pertanyaan spesifik. Untuk semua kasus lain, clarification kosong. Jangan mengarang intent tiket untuk pertanyaan umum.',
+                'content' => 'Pahami pertanyaan Maintenance dan keluarkan hanya JSON sesuai schema; jangan menjawab pertanyaan umum dan jangan membuat SQL. Variasikan bahasa dipetakan ke maksud yang sama. Contoh tiket OPEN hari ini = entity=ticket, metric=count, date_basis=none, period=today, filter.status=open; kata hari ini tidak membatasi tanggal dibuat. Gunakan created_at bila secara eksplisit ditanya dibuat, closed_at bila ditanya ditutup (status closed). Incident periode memakai created_at. Contoh: jumlah mesin aktif => entity=machine, metric=count, filter.is_active=true; jumlah mesin per plant => group_by=plant. Jumlah plant => entity=plant, metric=count. Incident: hitung dengan filter machine/plant; ranking mesin atau plant gunakan group_by terkait dan sort desc/asc sesuai paling sering/sedikit. Distribusi status tiket => entity=ticket, metric=status. Spare part terpakai => entity=spare_part, metric=sum, group_by=spare_part untuk ranking atau none untuk total, periode memakai created_at pada catatan pemakaian. Plant dapat dinyatakan lewat kode/nama dalam filter.plant atau ID dalam filter.plant_id. Mesin gunakan filter.machine. Periode 7/30/90 hari gunakan last_7_days/last_30_days/last_90_days. Jika informasi penting ambigu, clarify=true, supported=false, gunakan intent placeholder (ticket/list/none/all/date_basis none/filter kosong/sort none/limit null) dan ajukan satu klarifikasi spesifik. Pertanyaan umum gunakan supported=false, clarify=false, placeholder sama, clarification kosong. Untuk Maintenance jelas: supported=true, clarify=false, isi intent sesuai schema. Jangan mengarang intent atau SQL.',
             ],
             ['role' => 'user', 'content' => mb_substr($question, 0, 500)],
         ], self::schema());
@@ -92,7 +92,7 @@ class MiraIntentService
     public function isValid(array $intent): bool
     {
         $allowedKeys = ['supported', 'entity', 'metric', 'group_by', 'period', 'date_basis', 'filter', 'sort', 'limit'];
-        $filterKeys = ['status', 'problem_type', 'plant_id', 'machine'];
+        $filterKeys = ['status', 'problem_type', 'plant_id', 'plant', 'machine', 'is_active'];
 
         if (array_diff(array_keys($intent), $allowedKeys) !== []
             || ! is_array($intent['filter'] ?? null)
@@ -103,15 +103,17 @@ class MiraIntentService
         return Validator::make($intent, [
             'supported' => ['required', 'boolean'],
             'entity' => ['required', 'string', 'in:incident,ticket,machine,plant,spare_part'],
-            'metric' => ['required', 'string', 'in:count,average,list,status'],
-            'group_by' => ['required', 'string', 'in:machine,plant,problem_type,executor,none'],
+            'metric' => ['required', 'string', 'in:count,average,list,status,sum'],
+            'group_by' => ['required', 'string', 'in:machine,plant,problem_type,executor,spare_part,none'],
             'period' => ['required', 'string', 'in:today,last_7_days,last_30_days,last_90_days,all'],
             'date_basis' => ['required', 'string', 'in:none,created_at,closed_at'],
             'filter' => ['present', 'array'],
             'filter.status' => ['sometimes', 'string', 'in:open,closed,resolved'],
             'filter.problem_type' => ['sometimes', 'string', 'max:100'],
             'filter.plant_id' => ['sometimes', 'integer', 'min:1'],
+            'filter.plant' => ['sometimes', 'string', 'max:100'],
             'filter.machine' => ['sometimes', 'string', 'max:100'],
+            'filter.is_active' => ['sometimes', 'boolean'],
             'sort' => ['required', 'string', 'in:asc,desc,none'],
             'limit' => ['present', 'nullable', 'integer', 'between:1,10'],
         ])->passes();
@@ -125,8 +127,8 @@ class MiraIntentService
                 'supported' => ['type' => 'boolean'],
                 'clarify' => ['type' => 'boolean'],
                 'entity' => ['type' => 'string', 'enum' => ['incident', 'ticket', 'machine', 'plant', 'spare_part']],
-                'metric' => ['type' => 'string', 'enum' => ['count', 'average', 'list', 'status']],
-                'group_by' => ['type' => 'string', 'enum' => ['machine', 'plant', 'problem_type', 'executor', 'none']],
+                'metric' => ['type' => 'string', 'enum' => ['count', 'average', 'list', 'status', 'sum']],
+                'group_by' => ['type' => 'string', 'enum' => ['machine', 'plant', 'problem_type', 'executor', 'spare_part', 'none']],
                 'period' => ['type' => 'string', 'enum' => ['today', 'last_7_days', 'last_30_days', 'last_90_days', 'all']],
                 'date_basis' => ['type' => 'string', 'enum' => ['none', 'created_at', 'closed_at']],
                 'filter' => [
@@ -135,7 +137,9 @@ class MiraIntentService
                         'status' => ['type' => 'string', 'enum' => ['open', 'closed', 'resolved']],
                         'problem_type' => ['type' => 'string'],
                         'plant_id' => ['type' => 'integer'],
+                        'plant' => ['type' => 'string'],
                         'machine' => ['type' => 'string'],
+                        'is_active' => ['type' => 'boolean'],
                     ],
                     'additionalProperties' => false,
                 ],

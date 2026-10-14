@@ -7,6 +7,7 @@ use App\Services\MiraIntentService;
 use App\Services\MiraQueryService;
 use App\Services\MiraTelegramClient;
 use App\Services\MiraTelegramMessageHandler;
+use Illuminate\Support\Facades\Http;
 use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -211,5 +212,84 @@ class MiraTelegramCommandTest extends TestCase
             'chat' => ['id' => 12345, 'type' => 'private'],
             'from' => ['id' => 67890, 'is_bot' => false],
         ]);
+    }
+
+    public function test_start_and_menu_send_an_inline_main_menu(): void
+    {
+        $assistant = Mockery::mock(MiraAssistantService::class);
+        $assistant->shouldNotReceive('answer');
+        $this->app->instance(MiraAssistantService::class, $assistant);
+        $telegram = Mockery::mock(MiraTelegramClient::class);
+        $telegram->shouldReceive('sendMessage')->once()->withArgs(fn ($chatId, $text, $markup) => $chatId === 12345
+            && str_contains($text, 'Selamat datang')
+            && isset($markup['inline_keyboard'])
+            && count($markup['inline_keyboard']) === 3
+            && $markup['inline_keyboard'][0][0]['callback_data'] === 'mira:menu:summary'
+        );
+
+        app(MiraTelegramMessageHandler::class)->handle($telegram, 3001, [
+            'text' => '/start', 'chat' => ['id' => 12345, 'type' => 'private'], 'from' => ['id' => 67890],
+        ]);
+    }
+
+    public function test_menu_command_also_opens_main_menu(): void
+    {
+        $telegram = Mockery::mock(MiraTelegramClient::class);
+        $telegram->shouldReceive('sendMessage')->once()->withArgs(fn ($chatId, $text, $markup) => $chatId === 12345 && isset($markup['inline_keyboard'][2][1]['callback_data'])
+        );
+        app(MiraTelegramMessageHandler::class)->handle($telegram, 3004, [
+            'text' => '/menu', 'chat' => ['id' => 12345, 'type' => 'private'], 'from' => ['id' => 67890],
+        ]);
+    }
+
+    public function test_known_menu_callback_runs_database_query_without_calling_assistant(): void
+    {
+        $assistant = Mockery::mock(MiraAssistantService::class);
+        $assistant->shouldNotReceive('answer');
+        $this->app->instance(MiraAssistantService::class, $assistant);
+        $queries = Mockery::mock(MiraQueryService::class);
+        $queries->shouldReceive('runMenuAction')->once()->with('ticket.open', [])->andReturn([
+            'query_type' => 'ticket.count.none', 'period' => 'saat ini', 'data' => 4, 'duration_ms' => 1,
+        ]);
+        $this->app->instance(MiraQueryService::class, $queries);
+        $telegram = Mockery::mock(MiraTelegramClient::class);
+        $telegram->shouldReceive('answerCallbackQuery')->once()->with('cb-1');
+        $telegram->shouldReceive('editMessageText')->once()->withArgs(fn ($chatId, $messageId, $text, $markup) => $chatId === 12345 && $messageId === 77 && str_contains($text, '4 tiket') && isset($markup['inline_keyboard'])
+        );
+
+        app(MiraTelegramMessageHandler::class)->handleCallback($telegram, 3002, [
+            'id' => 'cb-1', 'data' => 'mira:action:ticket.open',
+            'message' => ['message_id' => 77, 'chat' => ['id' => 12345, 'type' => 'private']],
+        ]);
+    }
+
+    public function test_unknown_callback_is_acknowledged_and_returns_to_main_menu(): void
+    {
+        $telegram = Mockery::mock(MiraTelegramClient::class);
+        $telegram->shouldReceive('answerCallbackQuery')->once()->with('cb-unknown');
+        $telegram->shouldReceive('editMessageText')->once()->withArgs(fn ($chatId, $messageId, $text, $markup) => str_contains($text, 'tidak dikenal') && isset($markup['inline_keyboard'])
+        );
+
+        app(MiraTelegramMessageHandler::class)->handleCallback($telegram, 3003, [
+            'id' => 'cb-unknown', 'data' => 'mira:action:drop_table',
+            'message' => ['message_id' => 78, 'chat' => ['id' => 12345, 'type' => 'private']],
+        ]);
+    }
+
+    public function test_telegram_client_requests_callbacks_and_sends_inline_keyboard_payloads(): void
+    {
+        config(['services.mira.telegram_token' => 'test-token']);
+        Http::fake(['api.telegram.org/*' => Http::response(['ok' => true, 'result' => []])]);
+        $client = app(MiraTelegramClient::class);
+        $client->getUpdates(null);
+        $client->sendMessage(12345, 'Menu', ['inline_keyboard' => [[['text' => 'Ringkasan', 'callback_data' => 'mira:menu:summary']]]]);
+        $client->answerCallbackQuery('cb-1');
+
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/getUpdates')
+            && in_array('callback_query', $request['allowed_updates'], true));
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/sendMessage')
+            && $request['reply_markup']['inline_keyboard'][0][0]['callback_data'] === 'mira:menu:summary');
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/answerCallbackQuery')
+            && $request['callback_query_id'] === 'cb-1');
     }
 }
