@@ -39,6 +39,7 @@ class MiraQueryServiceTest extends TestCase
             $table->string('problem_type');
             $table->string('status');
             $table->dateTime('created_at');
+            $table->dateTime('closed_at')->nullable();
         });
         Schema::connection('pgsql_mira')->create('incidents', function ($table): void {
             $table->id();
@@ -59,7 +60,7 @@ class MiraQueryServiceTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_it_counts_open_tickets_created_today_from_the_mira_connection(): void
+    public function test_current_open_ticket_count_ignores_created_today_period(): void
     {
         DB::connection('pgsql_mira')->table('machines')->insert([
             ['id' => 1, 'code' => 'M-01', 'name' => 'Press 1', 'plant_id' => 1],
@@ -76,13 +77,58 @@ class MiraQueryServiceTest extends TestCase
             'metric' => 'count',
             'group_by' => 'none',
             'period' => 'today',
+            'date_basis' => 'none',
             'filter' => ['status' => 'open'],
             'sort' => 'none',
             'limit' => null,
         ]);
 
-        $this->assertSame(1, $result['data']);
+        $this->assertSame(2, $result['data']);
+        $this->assertSame('saat ini', $result['period']);
         $this->assertSame('ticket.count.none', $result['query_type']);
+    }
+
+    public function test_open_tickets_explicitly_created_today_filter_creation_time_and_status(): void
+    {
+        $this->insertTickets();
+
+        $result = app(MiraQueryService::class)->run($this->ticketCountIntent('today', 'created_at', 'open'));
+
+        $this->assertSame(1, $result['data']);
+    }
+
+    public function test_open_tickets_without_a_period_counts_all_current_open_tickets(): void
+    {
+        $this->insertTickets();
+
+        $result = app(MiraQueryService::class)->run($this->ticketCountIntent('all', 'none', 'open'));
+
+        $this->assertSame(3, $result['data']);
+        $this->assertSame('saat ini', $result['period']);
+    }
+
+    public function test_tickets_created_in_last_seven_days_keep_created_at_filter(): void
+    {
+        $this->insertTickets();
+
+        $result = app(MiraQueryService::class)->run($this->ticketCountIntent('last_7_days', 'created_at'));
+
+        $this->assertSame(4, $result['data']);
+    }
+
+    public function test_closed_today_uses_closed_at(): void
+    {
+        DB::connection('pgsql_mira')->table('machines')->insert([
+            ['id' => 1, 'code' => 'M-01', 'name' => 'Press 1', 'plant_id' => 1],
+        ]);
+        DB::connection('pgsql_mira')->table('maintenance_tickets')->insert([
+            ['machine_id' => 1, 'problem_type' => 'Electrical', 'status' => 'CLOSED', 'created_at' => '2026-09-01 08:00:00', 'closed_at' => '2026-10-06 08:00:00'],
+            ['machine_id' => 1, 'problem_type' => 'Mechanical', 'status' => 'CLOSED', 'created_at' => '2026-10-06 09:00:00', 'closed_at' => '2026-10-05 09:00:00'],
+        ]);
+
+        $result = app(MiraQueryService::class)->run($this->ticketCountIntent('today', 'closed_at', 'closed'));
+
+        $this->assertSame(1, $result['data']);
     }
 
     public function test_it_ranks_incidents_by_machine_using_the_mira_connection(): void
@@ -104,6 +150,7 @@ class MiraQueryServiceTest extends TestCase
             'metric' => 'count',
             'group_by' => 'machine',
             'period' => 'last_30_days',
+            'date_basis' => 'created_at',
             'filter' => [],
             'sort' => 'desc',
             'limit' => 5,
@@ -116,6 +163,24 @@ class MiraQueryServiceTest extends TestCase
         $this->assertSame(2, $result['data'][0]['count']);
     }
 
+    public function test_incident_count_today_still_filters_incident_creation_time(): void
+    {
+        DB::connection('pgsql_mira')->table('machines')->insert([
+            ['id' => 1, 'code' => 'M-01', 'name' => 'Press 1', 'plant_id' => 1],
+        ]);
+        DB::connection('pgsql_mira')->table('incidents')->insert([
+            ['machine_id' => 1, 'problem_type' => 'Electrical', 'status' => 'OPEN', 'created_at' => '2026-10-06 08:00:00'],
+            ['machine_id' => 1, 'problem_type' => 'Mechanical', 'status' => 'OPEN', 'created_at' => '2026-10-05 23:59:59'],
+        ]);
+
+        $result = app(MiraQueryService::class)->run([
+            'supported' => true, 'entity' => 'incident', 'metric' => 'count', 'group_by' => 'none',
+            'period' => 'today', 'date_basis' => 'created_at', 'filter' => [], 'sort' => 'none', 'limit' => null,
+        ]);
+
+        $this->assertSame(1, $result['data']);
+    }
+
     public function test_it_rejects_unsupported_intents_before_querying(): void
     {
         DB::connection('pgsql_mira')->enableQueryLog();
@@ -126,6 +191,7 @@ class MiraQueryServiceTest extends TestCase
             'metric' => 'list',
             'group_by' => 'none',
             'period' => 'today',
+            'date_basis' => 'none',
             'filter' => [],
             'sort' => 'none',
             'limit' => null,
@@ -133,5 +199,44 @@ class MiraQueryServiceTest extends TestCase
 
         $this->assertNull($result);
         $this->assertSame([], DB::connection('pgsql_mira')->getQueryLog());
+    }
+
+    public function test_it_rejects_an_ambiguous_ticket_period_without_a_date_basis(): void
+    {
+        DB::connection('pgsql_mira')->enableQueryLog();
+
+        $result = app(MiraQueryService::class)->run($this->ticketCountIntent('today', 'none'));
+
+        $this->assertNull($result);
+        $this->assertSame([], DB::connection('pgsql_mira')->getQueryLog());
+    }
+
+    private function ticketCountIntent(string $period, string $dateBasis, ?string $status = null): array
+    {
+        return [
+            'supported' => true,
+            'entity' => 'ticket',
+            'metric' => 'count',
+            'group_by' => 'none',
+            'period' => $period,
+            'date_basis' => $dateBasis,
+            'filter' => $status === null ? [] : ['status' => $status],
+            'sort' => 'none',
+            'limit' => null,
+        ];
+    }
+
+    private function insertTickets(): void
+    {
+        DB::connection('pgsql_mira')->table('machines')->insert([
+            ['id' => 1, 'code' => 'M-01', 'name' => 'Press 1', 'plant_id' => 1],
+        ]);
+        DB::connection('pgsql_mira')->table('maintenance_tickets')->insert([
+            ['machine_id' => 1, 'plant_id' => 1, 'problem_type' => 'Electrical', 'status' => 'OPEN', 'created_at' => '2026-10-06 08:00:00'],
+            ['machine_id' => 1, 'plant_id' => 1, 'problem_type' => 'Mechanical', 'status' => 'CLOSED', 'created_at' => '2026-10-06 09:00:00'],
+            ['machine_id' => 1, 'plant_id' => 1, 'problem_type' => 'Electrical', 'status' => 'OPEN', 'created_at' => '2026-10-05 23:59:59'],
+            ['machine_id' => 1, 'plant_id' => 1, 'problem_type' => 'Electrical', 'status' => 'CLOSED', 'created_at' => '2026-09-30 10:00:00'],
+            ['machine_id' => 1, 'plant_id' => 1, 'problem_type' => 'Electrical', 'status' => 'OPEN', 'created_at' => '2026-09-29 23:59:59'],
+        ]);
     }
 }

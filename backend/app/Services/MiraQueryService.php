@@ -36,7 +36,9 @@ class MiraQueryService
 
         return [
             'query_type' => $intent['entity'].'.'.$intent['metric'].'.'.$intent['group_by'],
-            'period' => $this->periodLabel($intent['period']),
+            'period' => $intent['entity'] === 'ticket' && $intent['date_basis'] === 'none'
+                ? 'saat ini'
+                : $this->periodLabel($intent['period']),
             'data' => $data,
             'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ];
@@ -59,6 +61,23 @@ class MiraQueryService
 
         if ($intent['entity'] === 'ticket'
             && ($intent['filter']['status'] ?? null) === 'resolved') {
+            return false;
+        }
+
+        if ($intent['entity'] === 'ticket'
+            && $intent['date_basis'] === 'closed_at'
+            && ($intent['filter']['status'] ?? null) !== 'closed') {
+            return false;
+        }
+
+        if ($intent['entity'] === 'ticket'
+            && $intent['date_basis'] === 'none'
+            && $intent['period'] !== 'all'
+            && ($intent['filter']['status'] ?? null) !== 'open') {
+            return false;
+        }
+
+        if ($intent['entity'] === 'incident' && $intent['date_basis'] !== 'created_at') {
             return false;
         }
 
@@ -100,7 +119,15 @@ class MiraQueryService
         $query = $connection->table('maintenance_tickets as t')
             ->join('machines as m', 'm.id', '=', 't.machine_id');
 
-        $this->applyPeriod($query, 't.created_at', $range);
+        $dateColumn = match ($intent['date_basis']) {
+            'created_at' => 't.created_at',
+            'closed_at' => 't.closed_at',
+            default => null,
+        };
+
+        if ($dateColumn !== null) {
+            $this->applyPeriod($query, $dateColumn, $range);
+        }
 
         if (isset($intent['filter']['status'])) {
             $query->where('t.status', strtoupper($intent['filter']['status']));

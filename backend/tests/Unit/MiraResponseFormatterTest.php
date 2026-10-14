@@ -18,6 +18,7 @@ class MiraResponseFormatterTest extends TestCase
                 'metric' => 'count',
                 'group_by' => 'none',
                 'period' => 'today',
+                'date_basis' => 'created_at',
                 'filter' => ['status' => 'open'],
             ],
             ['period' => 'hari ini', 'data' => $count],

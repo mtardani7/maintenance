@@ -17,7 +17,7 @@ class MiraAssistantServiceTest extends TestCase
     {
         return [
             'supported' => true, 'entity' => 'ticket', 'metric' => 'count', 'group_by' => 'none',
-            'period' => 'today', 'filter' => ['status' => 'open'], 'sort' => 'none', 'limit' => null,
+            'period' => 'today', 'date_basis' => 'none', 'filter' => ['status' => 'open'], 'sort' => 'none', 'limit' => null,
         ];
     }
 
@@ -25,7 +25,7 @@ class MiraAssistantServiceTest extends TestCase
     {
         $question = 'Berapa tiket yang terbuka hari ini?';
         $intent = $this->maintenanceIntent();
-        $queryResult = ['query_type' => 'ticket.count.none', 'period' => 'hari ini', 'data' => 3, 'duration_ms' => 2];
+        $queryResult = ['query_type' => 'ticket.count.none', 'period' => 'saat ini', 'data' => 3, 'duration_ms' => 2];
         $intents = Mockery::mock(MiraIntentService::class);
         $intents->shouldReceive('understand')->once()->with($question)->andReturn([
             'route' => 'maintenance', 'intent' => $intent, 'answer' => '', 'clarification' => '', 'duration_ms' => 10,

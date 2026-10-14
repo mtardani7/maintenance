@@ -22,6 +22,7 @@ class MiraIntentServiceTest extends TestCase
             'metric' => 'count',
             'group_by' => 'none',
             'period' => 'today',
+            'date_basis' => 'none',
             'filter' => ['status' => 'open'],
             'sort' => 'none',
             'limit' => null,
@@ -55,6 +56,7 @@ class MiraIntentServiceTest extends TestCase
                 'metric' => 'count',
                 'group_by' => 'none',
                 'period' => 'today',
+                'date_basis' => 'none',
                 'filter' => ['status' => 'open'],
                 'sort' => 'none',
                 'limit' => null,
@@ -78,6 +80,7 @@ class MiraIntentServiceTest extends TestCase
         Config::set('services.mira.ollama_model', 'qwen3.5:2b');
         $general = $this->maintenanceResponse([
             'supported' => false, 'entity' => 'ticket', 'metric' => 'list', 'period' => 'all',
+            'date_basis' => 'none',
             'filter' => [],
         ]);
         Http::fake(['ollama.test:11434/api/chat' => Http::sequence()
@@ -103,7 +106,7 @@ class MiraIntentServiceTest extends TestCase
     {
         $response = $this->maintenanceResponse([
             'supported' => false, 'clarify' => true, 'entity' => 'ticket', 'metric' => 'list',
-            'period' => 'all', 'filter' => [], 'clarification' => 'Maksudnya status open atau closed?',
+            'period' => 'all', 'date_basis' => 'none', 'filter' => [], 'clarification' => 'Maksudnya status open atau closed?',
         ]);
         Http::fake(['*' => Http::response(['message' => ['content' => json_encode($response, JSON_THROW_ON_ERROR)]])]);
 
@@ -151,6 +154,7 @@ class MiraIntentServiceTest extends TestCase
             'metric' => 'count',
             'group_by' => 'none',
             'period' => 'today',
+            'date_basis' => 'none',
             'filter' => ['sql' => 'DROP TABLE maintenance_tickets'],
             'sort' => 'none',
             'limit' => null,
