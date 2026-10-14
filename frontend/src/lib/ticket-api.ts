@@ -167,6 +167,10 @@ export async function uploadTicketAttachments(id: Ticket["id"], files: File[]) {
   return apiRequest<{ data: NonNullable<Ticket['attachments']> }>(`/tickets/${encodeURIComponent(String(id))}/attachments`, { method: 'POST', body });
 }
 
+export function getTicketAttachmentPreview(url: string) {
+  return apiDownload(url);
+}
+
 export async function downloadTicketAttachment(url: string, fileName: string) {
   const blob = await apiDownload(url);
   const objectUrl = URL.createObjectURL(blob);

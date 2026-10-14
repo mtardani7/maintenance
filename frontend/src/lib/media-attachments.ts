@@ -3,6 +3,21 @@ export const MAX_ATTACHMENT_BYTES = 18 * 1024 * 1024;
 export const MAX_TOTAL_ATTACHMENT_BYTES = 18 * 1024 * 1024;
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const VIDEO_EXTENSIONS = new Set(['mp4', 'mov', 'webm']);
+const VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
+
+export type AttachmentPreviewType = 'image' | 'video' | null;
+
+export function getAttachmentPreviewType(mimeType: string | null | undefined, fileName: string): AttachmentPreviewType {
+  const mime = (mimeType ?? '').trim().toLowerCase().split(';', 1)[0];
+  if (IMAGE_TYPES.has(mime) || mime === 'image/jpg') return 'image';
+  if (VIDEO_TYPES.has(mime)) return 'video';
+
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image';
+  if (VIDEO_EXTENSIONS.has(ext)) return 'video';
+  return null;
+}
 
 function extension(file: File) {
   return file.name.split('.').pop()?.toLowerCase() ?? '';

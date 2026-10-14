@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { downloadTicketAttachment } from '@/lib/ticket-api';
 
-export function ProtectedAttachmentLink({ url, fileName }: { url: string; fileName: string }) {
+export function ProtectedAttachmentLink({ url, fileName, label = fileName }: { url: string; fileName: string; label?: string }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   async function download() {
@@ -14,5 +14,5 @@ export function ProtectedAttachmentLink({ url, fileName }: { url: string; fileNa
     catch { setError('Lampiran tidak dapat diunduh.'); }
     finally { setBusy(false); }
   }
-  return <span className="protected-attachment-link"><button type="button" onClick={() => void download()} disabled={busy}><Download aria-hidden="true" />{busy ? 'Mengunduh...' : fileName}</button>{error && <small role="alert">{error}</small>}</span>;
+  return <span className="protected-attachment-link"><button type="button" onClick={() => void download()} disabled={busy} aria-label={`Unduh ${fileName}`}><Download aria-hidden="true" />{busy ? 'Mengunduh...' : label}</button>{error && <small role="alert">{error}</small>}</span>;
 }

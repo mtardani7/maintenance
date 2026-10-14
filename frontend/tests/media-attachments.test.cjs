@@ -57,3 +57,12 @@ test('rejects unsupported files and leaves videos unchanged for safe fallback up
   assert.equal(await media.exports.prepareMedia(video), video);
   await assert.rejects(media.exports.prepareMedia(new File(['bad'], 'script.exe', { type: 'application/octet-stream' })), /jenis file tidak didukung/);
 });
+
+test('classifies supported attachment previews by MIME type and validated extension', () => {
+  assert.equal(media.exports.getAttachmentPreviewType('image/png', 'scan.bin'), 'image');
+  assert.equal(media.exports.getAttachmentPreviewType('application/octet-stream', 'photo.JPEG'), 'image');
+  assert.equal(media.exports.getAttachmentPreviewType('video/quicktime', 'clip.mov'), 'video');
+  assert.equal(media.exports.getAttachmentPreviewType('', 'clip.webm'), 'video');
+  assert.equal(media.exports.getAttachmentPreviewType(null, 'missing'), null);
+  assert.equal(media.exports.getAttachmentPreviewType('application/octet-stream', 'report.pdf'), null);
+});
