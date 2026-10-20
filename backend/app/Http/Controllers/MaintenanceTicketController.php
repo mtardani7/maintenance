@@ -118,7 +118,11 @@ class MaintenanceTicketController extends Controller
             Incident::query()
                 ->where('maintenance_ticket_id', $lockedTicket->getKey())
                 ->where('status', 'OPEN')
-                ->update(['status' => 'RESOLVED']);
+                ->update([
+                    'status' => 'RESOLVED',
+                    'action_taken' => $lockedTicket->action_taken,
+                    'result' => $lockedTicket->solution,
+                ]);
 
             event(new TicketClosed($lockedTicket->fresh(['machine', 'closedBy'])));
         });

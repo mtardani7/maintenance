@@ -83,7 +83,15 @@ class MaintenanceTicketExecutorTest extends TestCase
         $closedTicket = $ticket->fresh();
         $this->assertNotNull($closedTicket->closed_at);
         $this->assertSame($maintenanceUser->id, $closedTicket->closed_by_id);
-        $this->assertSame('RESOLVED', $incident->fresh()->status);
+        $resolvedIncident = $incident->fresh();
+        $this->assertSame('RESOLVED', $resolvedIncident->status);
+        $this->assertSame('Mengganti bearing', $resolvedIncident->action_taken);
+        $this->assertSame('Mesin kembali normal', $resolvedIncident->result);
+        Incident::query()->whereKey($incident->id)->update(['action_taken' => null, 'result' => null]);
+        $this->actingAs($maintenanceUser, 'sanctum')->getJson("/api/incidents/{$incident->id}")
+            ->assertOk()
+            ->assertJsonPath('data.actionTaken', 'Mengganti bearing')
+            ->assertJsonPath('data.result', 'Mesin kembali normal');
         $this->assertDatabaseHas('maintenance_tickets', [
             'id' => $ticket->id,
             'status' => 'CLOSED',
