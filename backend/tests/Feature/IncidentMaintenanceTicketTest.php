@@ -45,7 +45,7 @@ class IncidentMaintenanceTicketTest extends TestCase
             ->assertJsonPath('status', 'OPEN');
         $ticketNumber = $response->json('ticket_number');
         $this->assertIsString($ticketNumber);
-        $this->assertNotEmpty($ticketNumber);
+        $this->assertSame('RX03-M01-001', $ticketNumber);
 
         $incident = Incident::query()->with('maintenanceTicket')->findOrFail($response->json('id'));
         $this->assertNotNull($incident->maintenance_ticket_id);
@@ -56,6 +56,15 @@ class IncidentMaintenanceTicketTest extends TestCase
         $this->actingAs($operator, 'sanctum')->getJson("/api/tickets/{$ticketNumber}")
             ->assertOk()
             ->assertJsonPath('ticket_number', $ticketNumber);
+        $this->actingAs($operator, 'sanctum')->getJson('/api/tickets/'.$incident->maintenanceTicket->id)
+            ->assertNotFound();
+
+        $this->actingAs($operator, 'sanctum')->postJson('/api/incidents', [
+            'plant_id' => $plantId,
+            'machine_id' => $machineId,
+            'problem_type' => 'Abnormal sound',
+            'status' => 'OPEN',
+        ])->assertCreated()->assertJsonPath('ticket_number', 'RX03-M01-002');
 
         $this->actingAs($operator, 'sanctum')->postJson('/api/incidents', [
             'plant_id' => $plantId,

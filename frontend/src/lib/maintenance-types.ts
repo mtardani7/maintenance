@@ -50,7 +50,8 @@ export type Incident = {
 
 export type MaintenanceTicket = {
   id: number | string;
-  number?: string;
+  number: string;
+  ticket_number?: string;
   problemType: string;
   description?: string;
   status?: string;

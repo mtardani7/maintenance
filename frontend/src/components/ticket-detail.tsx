@@ -231,7 +231,7 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
         </dl>}
       </section>
 
-      <TicketAttachments ticketId={ticket.id} attachments={ticket.attachments} editable={ticket.status === 'OPEN' && canManage} onUploaded={(attachments) => setTicket((current) => current ? { ...current, attachments } : current)} />
+      <TicketAttachments ticketId={ticket.number} attachments={ticket.attachments} editable={ticket.status === 'OPEN' && canManage} onUploaded={(attachments) => setTicket((current) => current ? { ...current, attachments } : current)} />
 
       <section className="ticket-info-card spare-parts-card ticket-spare-section ticket-detail-section ticket-detail-optional">
         <div className="ticket-detail-section-heading ticket-detail-section-heading--action"><div><h2><span className="ticket-detail-section-icon"><Wrench aria-hidden="true" /></span>Spare Part <span className="ticket-optional-tag">Opsional</span></h2><p>Tambahkan hanya jika ada spare part yang digunakan.</p></div>{ticket.status === 'OPEN' && canManage && <button className="secondary-action ticket-add-part" type="button" onClick={() => setShowSparePartForm((current) => !current)} disabled={sparePartBusy}><Plus aria-hidden="true" />{showSparePartForm ? 'Batal' : 'Tambah Spare Part'}</button>}</div>

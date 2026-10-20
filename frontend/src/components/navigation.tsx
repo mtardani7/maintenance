@@ -25,10 +25,9 @@ const groups = [
   { label: 'Sistem', links: [{ href: '/settings', label: 'Pengaturan', icon: Settings, roles: ['admin'] as Role[] }] },
 ];
 
-export function Navigation() {
+export function Navigation({ collapsed, onCollapsedChange }: { collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
   const user = useAuthUser();
   const role: Role = user?.role ?? 'operator';
 
@@ -40,7 +39,7 @@ export function Navigation() {
         <div className="brand-lockup">
           <img src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/qa-logo.png`} alt="Sistem QA" className="brand-mark size-9 object-contain" />
           <div className="brand-copy"><strong title="MIRA — Maintenance Improvement Report Analysis">MIRA</strong></div>
-          <button className="sidebar-toggle" type="button" onClick={() => setCollapsed((value) => !value)} aria-label={collapsed ? 'Tampilkan bilah sisi' : 'Sembunyikan bilah sisi'}>{collapsed ? <ChevronRight aria-hidden="true" /> : <ChevronLeft aria-hidden="true" />}</button>
+          <button className="sidebar-toggle" type="button" onClick={() => onCollapsedChange(!collapsed)} aria-label={collapsed ? 'Tampilkan bilah sisi' : 'Sembunyikan bilah sisi'}>{collapsed ? <ChevronRight aria-hidden="true" /> : <ChevronLeft aria-hidden="true" />}</button>
           <button className="mobile-close" type="button" onClick={() => setMobileOpen(false)} aria-label="Tutup navigasi"><X aria-hidden="true" /></button>
         </div>
         <nav aria-label="Navigasi utama">

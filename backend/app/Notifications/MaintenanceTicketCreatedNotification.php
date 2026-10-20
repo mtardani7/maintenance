@@ -25,7 +25,7 @@ class MaintenanceTicketCreatedNotification extends Notification
             'machine' => $this->ticket->machine?->name,
             'problem' => $this->ticket->description ?: $this->ticket->problem_type,
             'incident_id' => $this->incidentId,
-            'url' => '/tickets/'.$this->ticket->getKey(),
+            'url' => '/tickets/'.$this->ticket->ticket_number,
             'dedupe_key' => 'ticket-created:'.$this->ticket->getKey(),
         ];
     }

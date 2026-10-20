@@ -27,7 +27,7 @@ class MaintenanceTicketClosedNotification extends Notification
             'closed_by' => $this->ticket->closedBy?->name,
             'closed_at' => $this->ticket->closed_at?->toISOString(),
             'incident_id' => $this->ticket->incident?->getKey(),
-            'url' => '/tickets/'.$this->ticket->getKey(),
+            'url' => '/tickets/'.$this->ticket->ticket_number,
             'dedupe_key' => 'ticket-closed:'.$this->ticket->getKey(),
         ];
     }

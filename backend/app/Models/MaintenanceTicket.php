@@ -39,13 +39,7 @@ class MaintenanceTicket extends Model
 
     public function resolveRouteBindingQuery($query, $value, $field = null)
     {
-        return $query->where(function ($ticketQuery) use ($value): void {
-            $ticketQuery->where('ticket_number', $value);
-
-            if (ctype_digit((string) $value)) {
-                $ticketQuery->orWhere('id', (int) $value);
-            }
-        });
+        return $query->where($field ?? $this->getRouteKeyName(), $value);
     }
 
     public function machine(): BelongsTo

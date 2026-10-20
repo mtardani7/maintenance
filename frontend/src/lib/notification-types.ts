@@ -18,6 +18,11 @@ export type AppNotification = {
   url?: string;
 };
 
+export function notificationTarget(item: AppNotification): string {
+  if (item.ticketNumber) return `/tickets/${encodeURIComponent(item.ticketNumber)}`;
+  return item.url ?? '/notifications';
+}
+
 export type NotificationPage = {
   data: AppNotification[];
   unreadCount: number;

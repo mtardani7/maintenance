@@ -21,10 +21,10 @@ type TicketCollection =
 const paths = {
   list: process.env.NEXT_PUBLIC_TICKETS_PATH || "/tickets",
   detail:
-    process.env.NEXT_PUBLIC_TICKET_DETAIL_PATH_TEMPLATE || "/tickets/{id}",
+    process.env.NEXT_PUBLIC_TICKET_DETAIL_PATH_TEMPLATE || "/tickets/{ticket}",
   action:
     process.env.NEXT_PUBLIC_TICKET_ACTION_PATH_TEMPLATE ||
-    "/tickets/{id}/actions/{action}",
+    "/tickets/{ticket}/actions/{action}",
   stats: process.env.NEXT_PUBLIC_TICKET_STATS_PATH,
 };
 
@@ -63,12 +63,13 @@ function withQuery(path: string, filters: TicketFilters) {
 
 function replacePath(
   template: string | undefined,
-  id: Ticket["id"],
+  ticketNumber: Ticket["number"],
   label: string,
   action?: TicketAction,
 ) {
   return requiredPath(template, label)
-    .replace("{id}", encodeURIComponent(String(id)))
+    .replace("{ticket}", encodeURIComponent(ticketNumber))
+    .replace("{id}", encodeURIComponent(ticketNumber))
     .replace("{action}", action ?? "");
 }
 
@@ -155,16 +156,16 @@ export async function getTickets(
   };
 }
 
-export function getTicket(id: Ticket["id"]) {
+export function getTicket(ticketNumber: Ticket["number"]) {
   return apiRequest<Partial<Ticket> & Record<string, unknown>>(
-    replacePath(paths.detail, id, "Ticket detail"),
+    replacePath(paths.detail, ticketNumber, "Ticket detail"),
   ).then((ticket) => normalizeTicket(ticket));
 }
 
-export async function uploadTicketAttachments(id: Ticket["id"], files: File[]) {
+export async function uploadTicketAttachments(ticketNumber: Ticket["number"], files: File[]) {
   const body = new FormData();
   files.forEach((file) => body.append('files[]', file, file.name));
-  return apiRequest<{ data: NonNullable<Ticket['attachments']> }>(`/tickets/${encodeURIComponent(String(id))}/attachments`, { method: 'POST', body });
+  return apiRequest<{ data: NonNullable<Ticket['attachments']> }>(`/tickets/${encodeURIComponent(ticketNumber)}/attachments`, { method: 'POST', body });
 }
 
 export function getTicketAttachmentPreview(url: string) {
@@ -188,7 +189,7 @@ export function getTicketStats() {
 }
 
 export function performTicketAction(
-  id: Ticket["id"],
+  ticketNumber: Ticket["number"],
   action: TicketAction,
   input: Partial<TicketActionInput> = {},
 ) {
@@ -201,7 +202,7 @@ export function performTicketAction(
     ...(solution?.trim() ? { solution: solution.trim() } : {}),
   };
   return apiRequest<Partial<Ticket> & Record<string, unknown>>(
-    replacePath(paths.action, id, "Ticket actions", action),
+    replacePath(paths.action, ticketNumber, "Ticket actions", action),
     { method: "POST", body: JSON.stringify(body) },
   ).then((ticket) => normalizeTicket(ticket));
 }
@@ -210,8 +211,8 @@ export function getMaintenanceUsers() {
   return apiRequest<MaintenanceUser[]>('/maintenance-users');
 }
 
-export function updateBreakdownAnalysis(ticketId: Ticket["id"], input: BreakdownAnalysisInput) {
-  return apiRequest<Partial<Ticket> & Record<string, unknown>>(`/tickets/${encodeURIComponent(String(ticketId))}`, {
+export function updateBreakdownAnalysis(ticketNumber: Ticket["number"], input: BreakdownAnalysisInput) {
+  return apiRequest<Partial<Ticket> & Record<string, unknown>>(`/tickets/${encodeURIComponent(ticketNumber)}`, {
     method: "PUT",
     body: JSON.stringify({
       root_cause_analysis: input.rootCauseAnalysis,
@@ -222,15 +223,15 @@ export function updateBreakdownAnalysis(ticketId: Ticket["id"], input: Breakdown
   }).then((ticket) => normalizeTicket(ticket));
 }
 
-export function updateVerificationChecklist(ticketId: Ticket["id"], checklist: VerificationChecklist) {
-  return apiRequest<Partial<Ticket> & Record<string, unknown>>(`/tickets/${encodeURIComponent(String(ticketId))}`, {
+export function updateVerificationChecklist(ticketNumber: Ticket["number"], checklist: VerificationChecklist) {
+  return apiRequest<Partial<Ticket> & Record<string, unknown>>(`/tickets/${encodeURIComponent(ticketNumber)}`, {
     method: "PUT",
     body: JSON.stringify({ verification_checklist: checklist }),
   }).then((ticket) => normalizeTicket(ticket));
 }
 
-export function addSparePart(ticketId: Ticket["id"], input: Omit<SparePart, "id">) {
-  return apiRequest<Record<string, unknown>>(`/tickets/${encodeURIComponent(String(ticketId))}/spare-parts`, {
+export function addSparePart(ticketNumber: Ticket["number"], input: Omit<SparePart, "id">) {
+  return apiRequest<Record<string, unknown>>(`/tickets/${encodeURIComponent(ticketNumber)}/spare-parts`, {
     method: "POST",
     body: JSON.stringify({
       name: input.name,
@@ -247,8 +248,8 @@ export function addSparePart(ticketId: Ticket["id"], input: Omit<SparePart, "id"
   }));
 }
 
-export function removeSparePart(ticketId: Ticket["id"], sparePartId: SparePart["id"]) {
-  return apiRequest<void>(`/tickets/${encodeURIComponent(String(ticketId))}/spare-parts/${encodeURIComponent(String(sparePartId))}`, { method: "DELETE" });
+export function removeSparePart(ticketNumber: Ticket["number"], sparePartId: SparePart["id"]) {
+  return apiRequest<void>(`/tickets/${encodeURIComponent(ticketNumber)}/spare-parts/${encodeURIComponent(String(sparePartId))}`, { method: "DELETE" });
 }
 
 export function apiMessage(error: unknown) {

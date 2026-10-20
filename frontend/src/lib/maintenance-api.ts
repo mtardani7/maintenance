@@ -164,7 +164,11 @@ export async function getMachineIncidents(id: Machine['id']): Promise<Incident[]
 
 export async function getMachineTickets(id: Machine['id']): Promise<MaintenanceTicket[]> {
   const response = await apiRequest<Collection<MaintenanceTicket>>(pathFor(paths.machineTickets, id, 'Machine tickets'));
-  return collection(response);
+  return collection(response).map((ticket) => ({
+    ...ticket,
+    number: ticket.number ?? ticket.ticket_number ?? '',
+    problemType: ticket.problemType ?? (ticket as MaintenanceTicket & { problem_type?: string }).problem_type ?? 'Lainnya',
+  }));
 }
 
 export async function createIncident(input: CreateIncidentInput) {

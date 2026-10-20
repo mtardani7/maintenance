@@ -11,7 +11,7 @@ import { ProtectedAttachmentLink } from './protected-attachment-link';
 
 type Attachment = NonNullable<Ticket['attachments']>[number];
 
-export function TicketAttachments({ ticketId, attachments = [], editable, onUploaded }: { ticketId: Ticket['id']; attachments?: NonNullable<Ticket['attachments']>; editable: boolean; onUploaded: (attachments: NonNullable<Ticket['attachments']>) => void }) {
+export function TicketAttachments({ ticketId, attachments = [], editable, onUploaded }: { ticketId: Ticket['number']; attachments?: NonNullable<Ticket['attachments']>; editable: boolean; onUploaded: (attachments: NonNullable<Ticket['attachments']>) => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

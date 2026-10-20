@@ -74,7 +74,7 @@ export function TicketList({ header }: { header: ReactNode }) {
           <td><strong>{ticket.machine.code} / {ticket.machine.name}</strong><small>{ticket.plant}</small></td>
           <td className="ticket-data-table__problem" title={ticket.description}><strong>{problemLabels[ticket.problemType] ?? ticket.problemType}</strong><small>{ticket.description || '—'}</small></td>
           <td><StatusBadge className="maintenance-status-badge" tone={ticket.status === 'OPEN' ? 'success' : 'neutral'}>{statusLabels[ticket.status]}</StatusBadge></td>
-          <td><Link href={`/tickets/${encodeURIComponent(String(ticket.id))}`} className="ticket-view-action" aria-label={`Lihat tiket ${ticket.number}`}><Eye aria-hidden="true" /><span>Lihat</span></Link></td>
+          <td><Link href={`/tickets/${encodeURIComponent(ticket.number)}`} className="ticket-view-action" aria-label={`Lihat tiket ${ticket.number}`}><Eye aria-hidden="true" /><span>Lihat</span></Link></td>
         </tr>)}</tbody></MaintenanceTable>
       </div>
     </>}

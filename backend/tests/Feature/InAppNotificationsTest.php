@@ -50,7 +50,9 @@ class InAppNotificationsTest extends TestCase
 
         $maintenance->notifications()->first()->markAsRead();
         $this->actingAs($maintenance, 'sanctum')->getJson('/api/notifications')
-            ->assertOk()->assertJsonPath('unread_count', 0)->assertJsonPath('data.0.ticketNumber', $ticketNumber);
+            ->assertOk()->assertJsonPath('unread_count', 0)
+            ->assertJsonPath('data.0.ticketNumber', $ticketNumber)
+            ->assertJsonPath('data.0.url', '/tickets/'.$ticketNumber);
         $this->actingAs($otherOperator, 'sanctum')->getJson('/api/notifications')->assertOk()->assertJsonPath('total', 0);
         $this->actingAs($maintenance, 'sanctum')->getJson('/api/notifications/unread-count')->assertOk()->assertJsonPath('count', 0);
         $this->actingAs($maintenance, 'sanctum')->patchJson('/api/notifications/read-all')->assertOk();
@@ -77,6 +79,7 @@ class InAppNotificationsTest extends TestCase
         $this->assertSame(0, $otherOperator->notifications()->count());
         $notification = $operator->notifications()->where('type', MaintenanceTicketClosedNotification::class)->firstOrFail();
         $this->assertSame($ticketNumber, $notification->data['ticket_number']);
+        $this->assertSame('/tickets/'.$ticketNumber, $notification->data['url']);
         $this->assertSame($maintenance->name, $notification->data['closed_by']);
         $this->assertNotEmpty($notification->data['closed_at']);
         $closedTicket = Incident::query()->with('maintenanceTicket')->findOrFail($incidentId)->maintenanceTicket->fresh(['machine', 'closedBy']);

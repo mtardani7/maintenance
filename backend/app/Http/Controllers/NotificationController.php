@@ -56,7 +56,9 @@ class NotificationController extends Controller
             'closedBy' => $data['closed_by'] ?? null,
             'closedAt' => $data['closed_at'] ?? null,
             'incidentId' => $data['incident_id'] ?? null,
-            'url' => $data['url'] ?? null,
+            'url' => isset($data['ticket_number'])
+                ? '/tickets/'.$data['ticket_number']
+                : ($data['url'] ?? null),
         ];
     }
 }
