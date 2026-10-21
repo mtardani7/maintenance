@@ -73,7 +73,7 @@ export function DataPagination({
   summary,
   mobileSummary = summary,
   pageSize,
-  pageSizeOptions = [10, 25, 50, 100],
+  pageSizeOptions = [10, 20, 50],
   onPageSizeChange,
   onPageChange,
 }: {
@@ -87,7 +87,8 @@ export function DataPagination({
   onPageChange: (page: number) => void;
 }) {
   const pages = Array.from({ length: totalPages }, (_, index) => index + 1).filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1);
-  return <nav className="ticket-pagination maintenance-pagination" aria-label="Navigasi halaman">
+  const hasPageSize = pageSize !== undefined && onPageSizeChange !== undefined;
+  return <nav className={`ticket-pagination maintenance-pagination${hasPageSize ? ' has-page-size' : ''}`} aria-label="Navigasi halaman">
     {pageSize !== undefined && onPageSizeChange && <label className="pagination-page-size maintenance-pagination__page-size">Per halaman<select aria-label="Jumlah data per halaman" value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>{pageSizeOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>}
     <span className="ticket-pagination__summary"><span className="maintenance-pagination__desktop-summary">{summary}</span><span className="maintenance-pagination__mobile-summary">{mobileSummary}</span></span>
     <div className="ticket-pagination__controls">
