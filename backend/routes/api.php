@@ -11,6 +11,7 @@ use App\Http\Controllers\MaintenanceTicketSparePartController;
 use App\Http\Controllers\QaMachineController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\ReportsController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -18,6 +19,8 @@ Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
 Route::middleware('auth:sanctum')->group(function (): void {
+	Route::get('/reports/metrics', [ReportsController::class, 'index']);
+	Route::get('/reports/export', [ReportsController::class, 'export']);
 	Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
 	Route::get('/notifications', [NotificationController::class, 'index']);
 	Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);

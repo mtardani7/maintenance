@@ -57,6 +57,36 @@ export type ReportMetrics = {
   topFailureTypes?: { type: string; total: number }[];
 };
 
+export type ReportCategory = 'summary' | 'tickets' | 'incidents' | 'machines' | 'spare-parts' | 'downtime';
+export type ReportFilters = {
+  start_date: string;
+  end_date: string;
+  plant_id?: string;
+  machine_id?: string;
+  category: ReportCategory;
+  page?: number;
+  per_page?: number;
+  search?: string;
+  sort?: 'newest' | 'oldest' | 'incidents_desc' | 'incidents_asc';
+};
+export type ReportRowPage<T = Record<string, unknown>> = { data: T[]; current_page: number; last_page: number; per_page: number; total: number };
+export type MaintenanceReport = {
+  filters: Pick<ReportFilters, 'start_date' | 'end_date' | 'plant_id' | 'machine_id'>;
+  summary: { tickets_created: number; tickets_open_now: number; tickets_closed: number; incidents: number };
+  trend: Array<{ period: string; created: number; closed: number }>;
+  incident_trend: Array<{ period: string; total: number }>;
+  trend_granularity: 'day' | 'month';
+  ticket_statuses: Array<{ status: string; total: number }>;
+  incident_types: Array<{ problem_type: string; total: number }>;
+  top_incident_machines: Array<{ machine_id: number; code: string; name: string; plant: string | null; total: number }>;
+  incidents_by_plant: Array<{ plant_id: number | null; code: string | null; name: string | null; total: number }>;
+  machine_count_by_plant: Array<{ plant_id: number | null; plant: string | null; plant_code: string | null; total: number }>;
+  machines: ReportRowPage | null;
+  spare_parts: { transactions: number; quantity: number; top: Array<{ name: string; material_code: string; transactions: number; quantity: number }> };
+  rows: ReportRowPage | null;
+  downtime: { available: boolean; reason: string };
+};
+
 export type MachineAnalytics = {
   totalIncidents?: number;
   maintenanceTickets?: number;
