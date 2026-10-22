@@ -29,7 +29,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 function Brand() {
 	return (
 		<Link className="landing-brand" href="/" aria-label="MIRA beranda">
-			<Image src={`${basePath}/qa-logo.png`} alt="" width={40} height={40} priority unoptimized />
+			<Image src={`${basePath}/qa-logo.png`} alt="" width={40} height={40} priority unoptimized style={{ height: 'auto' }} />
 			<span><strong>MIRA</strong><small>Maintenance Improvement Report Analysis</small></span>
 		</Link>
 	);
@@ -103,7 +103,7 @@ export default function Home() {
 					<ol className="landing-guide-list"><li><span>1</span>Buka MIRA dan tekan tombol “+”</li><li><span>2</span>Pindai gambar kotak pada mesin, atau pilih lokasi dan mesin</li><li><span>3</span>Pilih masalah yang paling mirip. Jika ragu, pilih “Lainnya”</li><li><span>4</span>Ceritakan apa yang terjadi dengan kata-kata biasa</li><li><span>5</span>Tambahkan foto jika membantu</li><li><span>6</span>Tekan “Simpan Laporan”</li></ol>
 				</div>
 				<div className="landing-guide-visual landing-operator-visual" aria-label="Ilustrasi langkah operator membuat laporan">
-					<div className="landing-guide-phone"><span className="landing-phone-camera" /><div className="landing-phone-appbar"><Image src={`${basePath}/qa-logo.png`} alt="" width={23} height={23} unoptimized /><span>MIRA</span><Bell size={15} /></div><div className="landing-phone-welcome">Halo!</div><div className="landing-phone-scan"><QrCode size={44} /><span>Pilih atau pindai mesin</span></div><div className="landing-phone-report"><span>Laporan terbaru</span><strong>Mesin berhenti</strong><small>Menunggu tim perbaikan</small></div><span className="landing-phone-add">+</span></div>
+					<div className="landing-guide-phone"><span className="landing-phone-camera" /><div className="landing-phone-appbar"><Image src={`${basePath}/qa-logo.png`} alt="" width={23} height={23} unoptimized style={{ height: 'auto' }} /><span>MIRA</span><Bell size={15} /></div><div className="landing-phone-welcome">Halo!</div><div className="landing-phone-scan"><QrCode size={44} /><span>Pilih atau pindai mesin</span></div><div className="landing-phone-report"><span>Laporan terbaru</span><strong>Mesin berhenti</strong><small>Menunggu tim perbaikan</small></div><span className="landing-phone-add">+</span></div>
 				<div className="landing-guide-caption"><QrCode size={18} /><span><strong>Pilih cara yang mudah</strong><small>Pindai QR atau pilih mesin dari daftar</small></span></div>
 				</div>
 			</section>

@@ -116,6 +116,9 @@ function normalizeTicket(
     actionBy: ticket.actionBy ?? ticket.action_by as Ticket["actionBy"],
     closed_at: ticket.closed_at as string | undefined,
     closed_by: ticket.closed_by as Ticket["closed_by"],
+    actual_downtime_started_at: ticket.actual_downtime_started_at as string | undefined,
+    actual_downtime_ended_at: ticket.actual_downtime_ended_at as string | undefined,
+    audits: ticket.audits as Ticket["audits"],
     verificationChecklist: (ticket.verificationChecklist ?? ticket.verification_checklist) as VerificationChecklist | undefined,
     spareParts: ((ticket.spareParts ?? ticket.spare_parts) as Array<Record<string, unknown>> | undefined ?? []).map((part) => ({
       id: (part.id as number | string | undefined) ?? "-",
@@ -199,12 +202,32 @@ export function performTicketAction(
     reason: input.reason,
     action_taken: input.actionTaken,
     ...(durationHours ? { duration_hours: durationHours } : {}),
+    ...(input.actualDowntimeStartedAt ? { actual_downtime_started_at: input.actualDowntimeStartedAt } : {}),
+    ...(input.actualDowntimeEndedAt ? { actual_downtime_ended_at: input.actualDowntimeEndedAt } : {}),
     ...(solution?.trim() ? { solution: solution.trim() } : {}),
   };
   return apiRequest<Partial<Ticket> & Record<string, unknown>>(
     replacePath(paths.action, ticketNumber, "Ticket actions", action),
     { method: "POST", body: JSON.stringify(body) },
   ).then((ticket) => normalizeTicket(ticket));
+}
+
+export function reopenTicket(ticketNumber: Ticket["number"], reason: string) {
+  return apiRequest<Partial<Ticket> & Record<string, unknown>>(`/tickets/${encodeURIComponent(ticketNumber)}/reopen`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  }).then((ticket) => normalizeTicket(ticket));
+}
+
+export function correctTicketDowntime(ticketNumber: Ticket["number"], input: { startedAt: string; endedAt: string; reason: string }) {
+  return apiRequest<Partial<Ticket> & Record<string, unknown>>(`/tickets/${encodeURIComponent(ticketNumber)}/downtime-times`, {
+    method: "PUT",
+    body: JSON.stringify({
+      actual_downtime_started_at: input.startedAt,
+      actual_downtime_ended_at: input.endedAt,
+      reason: input.reason,
+    }),
+  }).then((ticket) => normalizeTicket(ticket));
 }
 
 export function getMaintenanceUsers() {

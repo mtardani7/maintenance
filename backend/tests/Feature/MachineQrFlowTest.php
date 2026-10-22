@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Incident;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -21,6 +22,7 @@ class MachineQrFlowTest extends TestCase
             'code' => $machineCode, 'name' => "Machine {$machineCode}", 'plant_id' => $plantId, 'section' => 'Test', 'is_active' => $active,
             'created_by' => $user->id, 'updated_by' => $user->id, 'created_at' => now(), 'updated_at' => now(),
         ]);
+
         return [$plantId, $machineId];
     }
 
@@ -59,12 +61,14 @@ class MachineQrFlowTest extends TestCase
         [$scannedPlantId, $scannedMachineId] = $this->machine($operator, 'RX03', 'MCH-SCANNED');
         [$otherPlantId, $otherMachineId] = $this->machine($operator, 'RX04', 'MCH-FRONTEND');
 
-        $response = $this->actingAs($operator, 'sanctum')->postJson('/api/incidents', [
+        $response = $this->actingAs($operator, 'sanctum')->post('/api/incidents', [
             'plant_id' => $otherPlantId,
             'machine_id' => $otherMachineId,
             'problem_type' => 'Machine stopped',
+            'description' => 'Bagian motor sisi kanan berhenti bergerak.',
             'status' => 'OPEN',
             'qr_payload' => $this->payload('RX03', 'MCH-SCANNED'),
+            'files' => [UploadedFile::fake()->image('before.jpg')],
         ])->assertCreated();
 
         $incident = Incident::findOrFail($response->json('id'));
@@ -77,12 +81,14 @@ class MachineQrFlowTest extends TestCase
         $operator = User::factory()->create(['role' => 'operator']);
         [$plantId, $machineId] = $this->machine($operator, 'RX03', 'MCH-OFF', false);
 
-        $this->actingAs($operator, 'sanctum')->postJson('/api/incidents', [
+        $this->actingAs($operator, 'sanctum')->withHeader('Accept', 'application/json')->post('/api/incidents', [
             'plant_id' => $plantId,
             'machine_id' => $machineId,
             'problem_type' => 'Machine stopped',
+            'description' => 'Mesin sedang tidak aktif saat dilaporkan.',
             'status' => 'OPEN',
             'qr_payload' => $this->payload('RX03', 'MCH-OFF'),
+            'files' => [UploadedFile::fake()->image('before.jpg')],
         ])->assertUnprocessable()->assertJsonPath('message', 'Mesin sedang tidak aktif dan tidak dapat digunakan untuk laporan.');
 
         $this->assertSame(0, Incident::query()->count());

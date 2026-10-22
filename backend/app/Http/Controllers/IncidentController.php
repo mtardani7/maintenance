@@ -11,7 +11,6 @@ use App\Services\MaintenanceTicketCreator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class IncidentController extends Controller
 {
@@ -44,17 +43,12 @@ class IncidentController extends Controller
             'plant_id' => ['required', 'integer'],
             'machine_id' => ['required', 'integer'],
             'problem_type' => ['required', 'string', 'max:100'],
-            'description' => [
-                'nullable',
-                'string',
-                Rule::requiredIf(fn (): bool => in_array(strtolower($request->string('problem_type')->toString()), ['other', 'lainnya'], true)),
-                'min:10',
-            ],
+            'description' => ['required', 'string', 'min:10', 'max:5000'],
             'action_taken' => ['nullable', 'required_if:status,RESOLVED', 'string', 'min:5'],
             'result' => ['nullable', 'required_if:status,RESOLVED', 'string', 'min:5'],
             'status' => ['required', 'in:OPEN,RESOLVED'],
             'qr_payload' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'files' => ['sometimes', 'array', 'max:5'],
+            'files' => ['required', 'array', 'min:1', 'max:5'],
             'files.*' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,mp4,mov,webm', 'max:18432'],
         ]);
         $files = $request->file('files', []);

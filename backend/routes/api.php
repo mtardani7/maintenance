@@ -39,6 +39,8 @@ Route::middleware('auth:sanctum')->group(function (): void {
 	Route::delete('/machines/{machine}', [MachineController::class, 'destroy']);
 	Route::post('/tickets/{ticket}/actions', [MaintenanceTicketController::class, 'action']);
 	Route::post('/tickets/{ticket}/actions/{action}', [MaintenanceTicketController::class, 'action']);
+	Route::post('/tickets/{ticket}/reopen', [MaintenanceTicketController::class, 'reopen']);
+	Route::put('/tickets/{ticket}/downtime-times', [MaintenanceTicketController::class, 'correctDowntime']);
 	Route::get('/maintenance-users', [MaintenanceTicketController::class, 'maintenanceUsers']);
 	Route::post('/incidents/{incident}/attachments', [AttachmentController::class, 'storeForIncident']);
 	Route::post('/tickets/{ticket}/attachments', [AttachmentController::class, 'storeForTicket']);

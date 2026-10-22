@@ -23,11 +23,15 @@ class MaintenanceTicket extends Model
         'verification_checklist',
         'closed_at',
         'closed_by_id',
+        'actual_downtime_started_at',
+        'actual_downtime_ended_at',
     ];
 
     protected $casts = [
         'duration_hours' => 'float',
         'closed_at' => 'datetime',
+        'actual_downtime_started_at' => 'datetime',
+        'actual_downtime_ended_at' => 'datetime',
         'target_at' => 'datetime',
         'verification_checklist' => 'array',
     ];
@@ -80,5 +84,10 @@ class MaintenanceTicket extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(Attachment::class);
+    }
+
+    public function audits(): HasMany
+    {
+        return $this->hasMany(MaintenanceTicketAudit::class)->latest();
     }
 }

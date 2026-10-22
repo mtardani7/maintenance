@@ -15,6 +15,23 @@ class MediaAttachmentTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_incident_report_requires_damage_location_description_and_media(): void
+    {
+        $operator = User::factory()->create(['role' => 'operator']);
+        $plantId = DB::table('plants')->insertGetId(['code' => 'RX03', 'name' => 'Plant Test', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $machineId = DB::table('machines')->insertGetId(['code' => 'M01', 'name' => 'Machine Test', 'plant_id' => $plantId, 'section' => 'Test', 'is_active' => true, 'created_by' => $operator->id, 'updated_by' => $operator->id, 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->actingAs($operator, 'sanctum')->postJson('/api/incidents', [
+            'plant_id' => $plantId,
+            'machine_id' => $machineId,
+            'problem_type' => 'Machine stopped',
+            'status' => 'OPEN',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['description', 'files']);
+
+        $this->assertSame(0, Incident::query()->count());
+    }
+
     public function test_incident_upload_stores_private_file_and_links_it_to_its_ticket(): void
     {
         Storage::fake('local');
@@ -26,6 +43,7 @@ class MediaAttachmentTest extends TestCase
             'plant_id' => $plantId,
             'machine_id' => $machineId,
             'problem_type' => 'Machine stopped',
+            'description' => 'Sisi kiri motor terlihat rusak sebelum perbaikan.',
             'status' => 'OPEN',
             'files' => [UploadedFile::fake()->image('damage-original.jpg', 2400, 1200)],
         ]);

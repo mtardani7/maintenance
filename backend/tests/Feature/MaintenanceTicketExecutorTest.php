@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\MaintenanceTicket;
 use App\Models\Incident;
+use App\Models\MaintenanceTicket;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -96,6 +96,43 @@ class MaintenanceTicketExecutorTest extends TestCase
             'id' => $ticket->id,
             'status' => 'CLOSED',
             'executor_id' => $maintenanceUser->id,
+        ]);
+    }
+
+    public function test_closing_ticket_calculates_duration_from_downtime_start_and_custom_end(): void
+    {
+        $technician = User::factory()->create(['role' => 'technician']);
+        $ticket = MaintenanceTicket::query()->create([
+            'ticket_number' => 'TEST-DOWNTIME-RANGE',
+            'plant_id' => 1,
+            'machine_id' => 1,
+            'problem_type' => 'Machine stopped',
+            'description' => 'Test downtime interval calculation.',
+            'source' => 'OPERATOR',
+            'status' => 'OPEN',
+            'priority' => 'MEDIUM',
+            'reported_by' => $technician->id,
+        ]);
+
+        $response = $this->actingAs($technician, 'sanctum')->postJson(
+            "/api/tickets/{$ticket->ticket_number}/actions/close",
+            [
+                'reason' => 'Kerusakan bearing',
+                'action_taken' => 'Mengganti bearing',
+                'solution' => 'Mesin kembali berjalan',
+                'actual_downtime_started_at' => '2026-10-22T08:00:00+07:00',
+                'actual_downtime_ended_at' => '2026-10-22T10:30:00+07:00',
+            ],
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('duration_hours', 2.5)
+            ->assertJsonPath('actual_downtime_started_at', '2026-10-22T01:00:00.000000Z')
+            ->assertJsonPath('actual_downtime_ended_at', '2026-10-22T03:30:00.000000Z');
+        $this->assertDatabaseHas('maintenance_tickets', [
+            'id' => $ticket->id,
+            'duration_hours' => 2.5,
+            'status' => 'CLOSED',
         ]);
     }
 }

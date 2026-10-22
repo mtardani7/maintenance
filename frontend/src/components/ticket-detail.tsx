@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, ClipboardCheck, Plus, UserRound, Wrench } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Clock3, Plus, RotateCcw, UserRound, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { addSparePart, apiMessage, getMaintenanceUsers, getTicket, performTicketAction, removeSparePart, updateBreakdownAnalysis, updateVerificationChecklist } from '@/lib/ticket-api';
+import { addSparePart, apiMessage, correctTicketDowntime, getMaintenanceUsers, getTicket, performTicketAction, removeSparePart, reopenTicket, updateBreakdownAnalysis, updateVerificationChecklist } from '@/lib/ticket-api';
 import type { BreakdownAnalysisInput, MaintenanceUser, SparePart, Ticket, TicketActionInput, VerificationChecklist, VerificationKey, VerificationValue } from '@/lib/ticket-types';
 import { DetailSkeleton, ErrorState } from './ui';
 import { TicketAttachments } from './ticket-attachments';
@@ -18,6 +18,50 @@ function formatDateTime(value?: string) {
     timeStyle: 'short',
     timeZone: 'Asia/Jakarta',
   }).format(date);
+}
+
+function localDateTimeInput(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}`;
+}
+
+function inferredDowntimeStart(ticket: Ticket) {
+  if (!ticket.closed_at || !ticket.durationHours) return '';
+  const end = new Date(ticket.closed_at);
+  if (Number.isNaN(end.getTime())) return '';
+  end.setTime(end.getTime() - ticket.durationHours * 60 * 60 * 1000);
+  return end.toISOString();
+}
+
+function currentJakartaDateTimeInput() {
+  return localDateTimeInput(new Date().toISOString());
+}
+
+function previewDowntime(start: string, end: string) {
+  if (!start || !end) return '';
+  const startDate = new Date(`${start}:00+07:00`);
+  const endDate = new Date(`${end}:00+07:00`);
+  const minutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
+  if (!Number.isFinite(minutes) || minutes <= 0) return 'Waktu selesai harus setelah waktu mulai.';
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return `Durasi ${[hours ? `${hours} jam` : '', remainder ? `${remainder} menit` : ''].filter(Boolean).join(' ')}`;
+}
+
+function ticketDurationLabel(ticket: Ticket) {
+  const hasStart = Boolean(ticket.actual_downtime_started_at);
+  const hasEnd = Boolean(ticket.actual_downtime_ended_at);
+  if (hasStart !== hasEnd) return 'Durasi belum lengkap';
+  if (hasStart && hasEnd && !ticket.durationHours) return 'Durasi belum lengkap';
+  if (!ticket.durationHours) return 'Belum dicatat';
+  const minutes = Math.round(ticket.durationHours * 60);
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return [hours ? `${hours} jam` : '', remainder ? `${remainder} menit` : ''].filter(Boolean).join(' ');
 }
 
 const verificationItems: Array<{ key: VerificationKey; label: string }> = [
@@ -44,7 +88,9 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState('');
   const [actionTaken, setActionTaken] = useState('');
-  const [durationHours, setDurationHours] = useState('');
+  const [workDowntimeStart, setWorkDowntimeStart] = useState('');
+  const [workDowntimeEnd, setWorkDowntimeEnd] = useState('');
+  const [workDowntimeEndTouched, setWorkDowntimeEndTouched] = useState(false);
   const [solution, setSolution] = useState('');
   const [showSparePartForm, setShowSparePartForm] = useState(false);
   const [sparePartName, setSparePartName] = useState('');
@@ -61,6 +107,12 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
   const [verificationBusy, setVerificationBusy] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false);
+  const [downtimeStart, setDowntimeStart] = useState('');
+  const [downtimeEnd, setDowntimeEnd] = useState('');
+  const [downtimeReason, setDowntimeReason] = useState('');
+  const [downtimeBusy, setDowntimeBusy] = useState(false);
+  const [showReopenConfirmation, setShowReopenConfirmation] = useState(false);
+  const [reopenReason, setReopenReason] = useState('');
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
@@ -70,13 +122,18 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
       setTicket(result);
       setReason(result.reason ?? '');
       setActionTaken(result.actionTaken ?? '');
-      setDurationHours(result.durationHours ? String(result.durationHours) : '');
+      setWorkDowntimeStart(localDateTimeInput(result.actual_downtime_started_at));
+      setWorkDowntimeEnd(localDateTimeInput(result.actual_downtime_ended_at) || currentJakartaDateTimeInput());
+      setWorkDowntimeEndTouched(false);
       setSolution(result.solution ?? '');
       setRootCauseAnalysis(result.rootCauseAnalysis ?? '');
       setCorrectiveActionPlan(result.correctiveActionPlan ?? '');
       setTargetAt(result.targetAt ? result.targetAt.replace(' ', 'T').slice(0, 16) : '');
       setActionById(result.actionBy?.id ? String(result.actionBy.id) : '');
       setVerification(result.verificationChecklist ?? {});
+      const hasAnyActualTime = Boolean(result.actual_downtime_started_at || result.actual_downtime_ended_at);
+      setDowntimeStart(localDateTimeInput(result.actual_downtime_started_at ?? (hasAnyActualTime ? undefined : inferredDowntimeStart(result))));
+      setDowntimeEnd(localDateTimeInput(result.actual_downtime_ended_at ?? (hasAnyActualTime ? undefined : result.closed_at)));
     }).catch((requestError) => setError(apiMessage(requestError)));
     if (role === 'technician') getMaintenanceUsers().then(setMaintenanceUsers).catch(() => setMaintenanceUsers([]));
   }, [ticketId, retryKey, role]);
@@ -85,13 +142,16 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
   if (!ticket) return <DetailSkeleton sections={["Informasi tiket", "Hasil pekerjaan", "Suku cadang", "Analisis gangguan", "Verifikasi", "Riwayat"]} />;
 
   const canManage = role === 'technician';
+  const isAdmin = role === 'admin';
 
   function requestCloseTicket() {
     const missing: string[] = [];
     if (!reason.trim()) missing.push('Penyebab');
     if (!actionTaken.trim()) missing.push('Tindakan');
     if (canManage && !currentUser?.id) missing.push('Pelaksana');
-    if (!durationHours || Number(durationHours) <= 0) missing.push('Durasi');
+    if (!workDowntimeStart) missing.push('Waktu mulai downtime');
+    if (!workDowntimeEnd) missing.push('Waktu selesai downtime');
+    else if (workDowntimeStart && previewDowntime(workDowntimeStart, workDowntimeEnd).startsWith('Waktu selesai')) missing.push('Waktu selesai harus setelah waktu mulai');
     if (!solution.trim()) missing.push('Hasil Pekerjaan');
     if (missing.length) {
       setActionError(`Lengkapi bagian wajib: ${missing.join(', ')}.`);
@@ -102,13 +162,65 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
   }
 
   async function closeTicket() {
+    if (!ticket) return;
     setActionError('');
     setBusy(true);
     try {
-      const input: TicketActionInput = { reason: reason.trim(), actionTaken: actionTaken.trim(), durationHours: Number(durationHours), solution: solution.trim() };
+      const endedAt = !workDowntimeEndTouched && !ticket.actual_downtime_ended_at
+        ? new Date().toISOString()
+        : `${workDowntimeEnd}:00+07:00`;
+      const input: TicketActionInput = {
+        reason: reason.trim(),
+        actionTaken: actionTaken.trim(),
+        actualDowntimeStartedAt: `${workDowntimeStart}:00+07:00`,
+        actualDowntimeEndedAt: endedAt,
+        solution: solution.trim(),
+      };
       setTicket(await performTicketAction(ticketId, 'close', input));
       setShowCloseConfirmation(false);
       setSuccessMessage('Tiket berhasil diselesaikan dan tersimpan di riwayat.');
+    } catch (requestError) {
+      setActionError(apiMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveDowntimeCorrection() {
+    if (!downtimeStart || !downtimeEnd || !downtimeReason.trim()) {
+      setActionError('Isi waktu mulai, waktu selesai, dan alasan koreksi.');
+      return;
+    }
+    setDowntimeBusy(true);
+    setActionError('');
+    try {
+      const updated = await correctTicketDowntime(ticketId, {
+        startedAt: `${downtimeStart}:00+07:00`,
+        endedAt: `${downtimeEnd}:00+07:00`,
+        reason: downtimeReason.trim(),
+      });
+      setTicket(updated);
+      setSuccessMessage('Waktu downtime aktual dan Duration berhasil dikoreksi.');
+      setDowntimeReason('');
+    } catch (requestError) {
+      setActionError(apiMessage(requestError));
+    } finally {
+      setDowntimeBusy(false);
+    }
+  }
+
+  async function reopenClosedTicket() {
+    if (!reopenReason.trim()) {
+      setActionError('Alasan pembukaan kembali wajib diisi.');
+      return;
+    }
+    setBusy(true);
+    setActionError('');
+    try {
+      setTicket(await reopenTicket(ticketId, reopenReason.trim()));
+      setShowReopenConfirmation(false);
+      setReopenReason('');
+      setSuccessMessage('Tiket berhasil dibuka kembali. Data Work Detail dan riwayat penutupan tetap tersimpan.');
     } catch (requestError) {
       setActionError(apiMessage(requestError));
     } finally {
@@ -216,20 +328,37 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
           <div className="work-detail-form">
             <label className="form-field"><span>Penyebab <b aria-hidden="true">*</b></span><textarea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Apa penyebab masalah?" /></label>
             <label className="form-field"><span>Tindakan <b aria-hidden="true">*</b></span><textarea rows={3} value={actionTaken} onChange={(event) => setActionTaken(event.target.value)} placeholder="Apa yang dilakukan?" /></label>
-            <div className="work-detail-grid">
+            <div className="work-detail-grid ticket-downtime-grid">
               <label className="form-field ticket-executor-field"><span>Pelaksana <b aria-hidden="true">*</b></span><span className="ticket-executor-value"><UserRound aria-hidden="true" /><input aria-label="Pelaksana" value={currentUser?.name ?? ''} placeholder="Memuat data pengguna..." readOnly /></span></label>
-              <label className="form-field"><span>Durasi <b aria-hidden="true">*</b></span><div className="ticket-duration-field"><input type="number" min="0.25" step="0.25" value={durationHours} onChange={(event) => setDurationHours(event.target.value)} placeholder="Contoh: 1,5" /><span>jam</span></div></label>
+              <label className="form-field"><span>Mulai downtime <b aria-hidden="true">*</b></span><input type="datetime-local" value={workDowntimeStart} onChange={(event) => setWorkDowntimeStart(event.target.value)} /></label>
+              <label className="form-field"><span>Selesai downtime <b aria-hidden="true">*</b></span><input type="datetime-local" value={workDowntimeEnd} onChange={(event) => { setWorkDowntimeEnd(event.target.value); setWorkDowntimeEndTouched(true); }} /></label>
             </div>
+            <p className="ticket-downtime-help">Otomatis mengikuti waktu tiket diselesaikan. Ubah bila mesin kembali beroperasi pada waktu berbeda.</p>
+            {workDowntimeStart && workDowntimeEnd && <p className="ticket-duration-preview" role="status">{previewDowntime(workDowntimeStart, workDowntimeEnd)}</p>}
             <label className="form-field"><span>Hasil Pekerjaan <b aria-hidden="true">*</b></span><textarea rows={3} value={solution} onChange={(event) => setSolution(event.target.value)} placeholder="Bagaimana hasil perbaikannya?" /></label>
           </div>
         </> : <dl className="ticket-detail-facts ticket-detail-work-history">
           <div><dt>Penyebab</dt><dd>{ticket.reason || 'Belum diisi'}</dd></div>
           <div><dt>Tindakan</dt><dd>{ticket.actionTaken || 'Belum diisi'}</dd></div>
           <div><dt>Pelaksana</dt><dd>{ticket.executor?.name || 'Belum ditentukan'}</dd></div>
-          <div><dt>Durasi</dt><dd>{ticket.durationHours ? `${ticket.durationHours} jam` : 'Belum dicatat'}</dd></div>
+          <div><dt>Durasi</dt><dd>{ticketDurationLabel(ticket)}</dd></div>
+          {ticket.actual_downtime_started_at && ticket.actual_downtime_ended_at && <><div><dt>Downtime aktual mulai</dt><dd>{formatDateTime(ticket.actual_downtime_started_at)}</dd></div><div><dt>Downtime aktual selesai</dt><dd>{formatDateTime(ticket.actual_downtime_ended_at)}</dd></div></>}
           <div className="ticket-detail-fact-wide"><dt>Hasil Pekerjaan</dt><dd>{ticket.solution || 'Belum diisi'}</dd></div>
         </dl>}
       </section>
+
+      {isAdmin && (ticket.status === 'CLOSED' || ticket.durationHours !== undefined || ticket.actual_downtime_started_at || ticket.actual_downtime_ended_at) && <section className="ticket-info-card ticket-detail-section ticket-detail-optional">
+        <div className="ticket-detail-section-heading"><div><h2><Clock3 aria-hidden="true" /> Koreksi Waktu Downtime Aktual</h2><p>Waktu ini terpisah dari waktu sistem menutup tiket. Koreksi akan memperbarui Duration dan tersimpan di audit trail.</p></div></div>
+        {Boolean(ticket.actual_downtime_started_at) !== Boolean(ticket.actual_downtime_ended_at) ? <p className="ticket-required-note">Timestamp downtime belum lengkap. Lengkapi waktu yang kosong berdasarkan waktu aktual mesin berhenti dan kembali beroperasi.</p> : !ticket.actual_downtime_started_at && <p className="ticket-required-note">Waktu yang tampil sebagai nilai awal hanya perkiraan dari Duration lama dan closed_at. Masukkan waktu aktual mesin berhenti dan kembali beroperasi.</p>}
+        <div className="work-detail-grid">
+          <label className="form-field">Mulai downtime aktual<input type="datetime-local" value={downtimeStart} onChange={(event) => setDowntimeStart(event.target.value)} /></label>
+          <label className="form-field">Selesai downtime aktual<input type="datetime-local" value={downtimeEnd} onChange={(event) => setDowntimeEnd(event.target.value)} /></label>
+        </div>
+        <label className="form-field">Alasan koreksi wajib diisi<textarea rows={2} value={downtimeReason} onChange={(event) => setDowntimeReason(event.target.value)} placeholder="Contoh: waktu aktual dikonfirmasi dari catatan operator." /></label>
+        {actionError && <ErrorState title="Waktu downtime belum disimpan" description={actionError} />}
+        <button className="secondary-action" type="button" onClick={() => void saveDowntimeCorrection()} disabled={downtimeBusy}>{downtimeBusy ? 'Menyimpan...' : 'Simpan Koreksi Waktu'}</button>
+        {ticket.audits?.length ? <div className="ticket-audit-history"><h3>Riwayat perubahan tiket</h3>{ticket.audits.map((audit) => <article key={audit.id}><strong>{audit.action === 'REOPEN' ? 'Tiket dibuka kembali' : audit.action === 'DOWNTIME_TIME_CORRECTED' ? 'Waktu downtime dikoreksi' : 'Tiket ditutup'}</strong><span>{audit.user?.name ?? 'Pengguna'} · {formatDateTime(audit.created_at)}</span>{audit.reason && <p>Alasan: {audit.reason}</p>}<small>Sebelum: {formatDateTime(String(audit.before_values?.actual_downtime_started_at ?? audit.before_values?.closed_at ?? ''))} → {formatDateTime(String(audit.before_values?.actual_downtime_ended_at ?? audit.before_values?.closed_at ?? ''))} ({String(audit.before_values?.duration_hours ?? '—')} jam)</small><small>Sesudah: {formatDateTime(String(audit.after_values?.actual_downtime_started_at ?? audit.after_values?.closed_at ?? ''))} → {formatDateTime(String(audit.after_values?.actual_downtime_ended_at ?? audit.after_values?.closed_at ?? ''))} ({String(audit.after_values?.duration_hours ?? '—')} jam)</small></article>)}</div> : null}
+      </section>}
 
       <TicketAttachments ticketId={ticket.number} attachments={ticket.attachments} editable={ticket.status === 'OPEN' && canManage} onUploaded={(attachments) => setTicket((current) => current ? { ...current, attachments } : current)} />
 
@@ -259,7 +388,7 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
       </section>}
 
       <section className="ticket-info-card closed-history-card ticket-detail-section ticket-detail-history">
-        <div className="ticket-detail-section-heading"><h2>{role === 'operator' ? 'Penyelesaian' : 'Riwayat'}</h2><p>Catatan status dan penyelesaian tiket.</p></div>
+        <div className="ticket-detail-section-heading"><div><h2>{role === 'operator' ? 'Penyelesaian' : 'Riwayat'}</h2><p>Catatan status dan penyelesaian tiket.</p></div>{isAdmin && ticket.status === 'CLOSED' && <button className="secondary-action" type="button" onClick={() => { setActionError(''); setShowReopenConfirmation(true); }}><RotateCcw aria-hidden="true" /> Buka Kembali Tiket</button>}</div>
         <dl className="ticket-detail-facts">
           <div><dt>Status</dt><dd><span className={`ticket-status ticket-status--${ticket.status.toLowerCase()}`}>{ticketStatusLabel(ticket.status)}</span></dd></div>
           {ticket.status === 'CLOSED' ? <><div><dt>Diselesaikan pada</dt><dd>{formatDateTime(ticket.closed_at)}</dd></div><div><dt>Diselesaikan oleh</dt><dd>{ticket.closed_by?.name || '—'}</dd></div></> : <><div><dt>Dibuat pada</dt><dd>{formatDateTime(ticket.createdAt)}</dd></div><div><dt>Pelapor</dt><dd>{ticket.reporter?.name ?? 'Operator'}</dd></div></>}
@@ -268,6 +397,7 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
     </main>
 
     {showCloseConfirmation && <div className="machine-modal-backdrop" role="presentation" onClick={() => setShowCloseConfirmation(false)}><section className="machine-modal ticket-close-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="ticket-close-title" aria-describedby="ticket-close-description" onClick={(event) => event.stopPropagation()}><h2 id="ticket-close-title">Selesaikan tiket ini?</h2><p id="ticket-close-description">Setelah diselesaikan, data pekerjaan menjadi riwayat dan tidak dapat diubah.</p>{actionError && <ErrorState title="Tiket belum diselesaikan" description={actionError} />}<div className="machine-modal-actions"><button className="secondary-action" type="button" onClick={() => setShowCloseConfirmation(false)} disabled={busy}>Batal</button><button className="primary-button" type="button" onClick={() => void closeTicket()} disabled={busy}>{busy ? 'Menyimpan...' : 'Selesaikan Tiket'}</button></div></section></div>}
+    {showReopenConfirmation && <div className="machine-modal-backdrop" role="presentation" onClick={() => !busy && setShowReopenConfirmation(false)}><section className="machine-modal ticket-close-confirmation" role="alertdialog" aria-modal="true" aria-labelledby="ticket-reopen-title" onClick={(event) => event.stopPropagation()}><h2 id="ticket-reopen-title">Buka kembali tiket?</h2><p>Status berubah menjadi OPEN agar Work Detail dapat diperbaiki. Riwayat penutupan dan durasi downtime tetap tersimpan.</p><label className="form-field">Alasan pembukaan kembali wajib diisi<textarea rows={3} value={reopenReason} onChange={(event) => setReopenReason(event.target.value)} placeholder="Jelaskan alasan tiket dibuka kembali." /></label>{actionError && <ErrorState title="Tiket belum dibuka kembali" description={actionError} />}<div className="machine-modal-actions"><button className="secondary-action" type="button" onClick={() => setShowReopenConfirmation(false)} disabled={busy}>Batal</button><button className="primary-button" type="button" onClick={() => void reopenClosedTicket()} disabled={busy}>{busy ? 'Menyimpan...' : 'Konfirmasi Buka Kembali'}</button></div></section></div>}
     {successMessage && <div className="machine-modal-backdrop" role="presentation"><section className="machine-modal machine-success-modal" role="alertdialog" aria-modal="true" aria-labelledby="ticket-action-success-title"><span className="machine-success-icon">✓</span><h2 id="ticket-action-success-title">{successMessage.startsWith('Tiket berhasil ditutup') ? 'Tiket berhasil diselesaikan' : 'Berhasil'}</h2><p>{successMessage}</p><div className="machine-modal-actions"><button className="primary-button" type="button" onClick={() => setSuccessMessage('')}>OK</button></div></section></div>}
   </div>;
 }

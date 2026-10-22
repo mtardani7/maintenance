@@ -175,7 +175,8 @@ export function IncidentReport() {
     if (!plantId) return 'Pilih plant terlebih dahulu.';
     if (!machineId) return 'Pilih mesin terlebih dahulu.';
     if (!problemType) return 'Pilih jenis masalah.';
-    if (problemType === 'Other' && description.trim().length < 10) return 'Untuk jenis masalah Lainnya, jelaskan masalah minimal 10 karakter.';
+    if (description.trim().length < 10) return 'Jelaskan kondisi sebelum perbaikan dan lokasi kerusakan minimal 10 karakter.';
+    if (!attachmentFiles.length) return 'Lampirkan minimal satu foto atau video kondisi mesin sebelum perbaikan.';
     if (!resolution) return 'Pilih apakah masalah dapat diselesaikan operator.';
     if (resolution === 'resolved' && actionTaken.trim().length < 5) return 'Jelaskan tindakan operator minimal 5 karakter.';
     if (resolution === 'resolved' && result.trim().length < 5) return 'Jelaskan hasil tindakan minimal 5 karakter.';
@@ -233,7 +234,7 @@ export function IncidentReport() {
   }
 
   const validationError = touched ? validate() : '';
-  const descriptionError = touched && problemType === 'Other' && description.trim().length < 10 ? 'Minimal 10 karakter untuk jenis masalah Lainnya.' : '';
+  const descriptionError = touched && description.trim().length < 10 ? 'Jelaskan kondisi sebelum perbaikan dan lokasi kerusakan (minimal 10 karakter).' : '';
   const selectedMachine: Machine | undefined = qrPrefill
     ? { ...qrPrefill.machine, section: qrPrefill.machine.section ?? undefined, plant_id: qrPrefill.plant.id, is_active: true }
     : machines.find((machine) => String(machine.id) === machineId);
@@ -256,8 +257,8 @@ export function IncidentReport() {
       <section className="form-card incident-form-section">
         <div className="incident-section-heading"><span className="incident-section-icon"><CircleAlert aria-hidden="true" /></span><div><p className="eyebrow">Langkah 2</p><h2>Apa masalahnya?</h2><p>Pilih jenis masalah dan jelaskan kondisi yang terjadi.</p></div></div>
         <div className="form-field"><span className="incident-field-label"><ClipboardCheck aria-hidden="true" />Jenis masalah</span><div className="choice-grid incident-choice-grid">{problemTypes.map((type) => { const Icon = type.icon; return <button type="button" className={`choice-button incident-choice-card ${problemType === type.value ? 'choice-button--selected' : ''}`} key={type.value} onClick={() => setProblemType(type.value)} disabled={submitting}><Icon aria-hidden="true" /><span><strong>{type.label}</strong><small>{type.detail}</small></span></button>; })}</div></div>
-        <label className="form-field incident-description-field"><span className="incident-field-label">Deskripsi Masalah{problemType === 'Other' && ' (wajib)'}</span><textarea value={description} onChange={(event) => setDescription(event.target.value)} onBlur={() => setTouched(true)} rows={3} placeholder="Jelaskan apa yang terjadi pada mesin..." disabled={submitting} /><span className="form-helper">Berikan informasi singkat agar Maintenance dapat memahami masalah.</span>{descriptionError && <span className="form-inline-error">{descriptionError}</span>}</label>
-        <div className="form-field"><span className="incident-field-label">Foto atau video kondisi mesin</span><MediaAttachmentPicker files={attachmentFiles} onChange={setAttachmentFiles} disabled={submitting} /></div>
+        <label className="form-field incident-description-field"><span className="incident-field-label">Kondisi sebelum perbaikan dan lokasi kerusakan <b aria-hidden="true">*</b></span><textarea required value={description} onChange={(event) => setDescription(event.target.value)} onBlur={() => setTouched(true)} rows={3} placeholder="Contoh: bagian motor sisi kiri bergetar dan mengeluarkan suara keras..." disabled={submitting} /><span className="form-helper">Sebutkan bagian mesin yang rusak dan kondisi yang terlihat sebelum diperbaiki.</span>{descriptionError && <span className="form-inline-error">{descriptionError}</span>}</label>
+        <div className="form-field"><span className="incident-field-label">Foto atau video kondisi mesin sebelum perbaikan <b aria-hidden="true">*</b></span><span className="form-helper">Wajib lampirkan minimal satu foto atau video agar lokasi dan kondisi kerusakan dapat diperiksa.</span><MediaAttachmentPicker files={attachmentFiles} onChange={setAttachmentFiles} disabled={submitting} /></div>
       </section>
       <section className="form-card incident-form-section">
         <div className="incident-section-heading"><span className="incident-section-icon"><Wrench aria-hidden="true" /></span><div><p className="eyebrow">Langkah 3</p><h2>Tindakan awal</h2><p>Apakah masalah dapat ditangani Operator?</p></div></div>

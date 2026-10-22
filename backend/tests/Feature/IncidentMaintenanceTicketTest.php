@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Incident;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -34,11 +35,13 @@ class IncidentMaintenanceTicketTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $response = $this->actingAs($operator, 'sanctum')->postJson('/api/incidents', [
+        $response = $this->actingAs($operator, 'sanctum')->post('/api/incidents', [
             'plant_id' => $plantId,
             'machine_id' => $machineId,
             'problem_type' => 'Machine stopped',
+            'description' => 'Sisi kiri motor bergetar sebelum diperbaiki.',
             'status' => 'OPEN',
+            'files' => [UploadedFile::fake()->image('before.jpg')],
         ]);
 
         $response->assertCreated()
@@ -59,20 +62,24 @@ class IncidentMaintenanceTicketTest extends TestCase
         $this->actingAs($operator, 'sanctum')->getJson('/api/tickets/'.$incident->maintenanceTicket->id)
             ->assertNotFound();
 
-        $this->actingAs($operator, 'sanctum')->postJson('/api/incidents', [
+        $this->actingAs($operator, 'sanctum')->post('/api/incidents', [
             'plant_id' => $plantId,
             'machine_id' => $machineId,
             'problem_type' => 'Abnormal sound',
+            'description' => 'Suara keras terdengar dari bagian motor.',
             'status' => 'OPEN',
+            'files' => [UploadedFile::fake()->image('before-2.jpg')],
         ])->assertCreated()->assertJsonPath('ticket_number', 'RX03-M01-002');
 
-        $this->actingAs($operator, 'sanctum')->postJson('/api/incidents', [
+        $this->actingAs($operator, 'sanctum')->post('/api/incidents', [
             'plant_id' => $plantId,
             'machine_id' => $machineId,
             'problem_type' => 'Abnormal sound',
+            'description' => 'Terdapat suara tidak normal pada gear.',
             'status' => 'RESOLVED',
             'action_taken' => 'Operator cleaned the affected area.',
             'result' => 'Machine is running normally now.',
+            'files' => [UploadedFile::fake()->image('before-3.jpg')],
         ])->assertCreated()->assertJsonPath('ticket_number', null);
     }
 }

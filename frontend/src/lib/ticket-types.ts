@@ -23,6 +23,9 @@ export type Ticket = {
   actionBy?: { id: number | string; name: string; role?: string };
   closed_at?: string;
   closed_by?: { id: number | string; name: string; role?: string };
+  actual_downtime_started_at?: string;
+  actual_downtime_ended_at?: string;
+  audits?: { id: number | string; action: string; reason?: string; before_values?: Record<string, unknown>; after_values?: Record<string, unknown>; created_at: string; user?: { id: number | string; name: string } }[];
   verificationChecklist?: VerificationChecklist;
   spareParts: SparePart[];
   sourceType?: "OPERATOR" | "QA" | "MANUAL";
@@ -77,6 +80,8 @@ export type TicketActionInput = {
   reason: string;
   actionTaken: string;
   durationHours?: number;
+  actualDowntimeStartedAt?: string;
+  actualDowntimeEndedAt?: string;
   solution?: string;
 };
 

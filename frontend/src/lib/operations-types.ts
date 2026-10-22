@@ -84,7 +84,17 @@ export type MaintenanceReport = {
   machines: ReportRowPage | null;
   spare_parts: { transactions: number; quantity: number; top: Array<{ name: string; material_code: string; transactions: number; quantity: number }> };
   rows: ReportRowPage | null;
-  downtime: { available: boolean; reason: string };
+  downtime: {
+    available: boolean;
+    total_hours: number;
+    work_count: number;
+    average_hours: number;
+    top_machine: { machine_id: number; code: string; name: string; total_hours: number } | null;
+    by_machine: { machine_id: number; code: string; name: string; total_hours: number; work_count: number }[];
+    by_plant: { plant_id: number | null; code: string | null; name: string | null; total_hours: number; work_count: number }[];
+    trend: { period: string; total_hours: number }[];
+    trend_granularity?: 'day' | 'month';
+  };
 };
 
 export type MachineAnalytics = {

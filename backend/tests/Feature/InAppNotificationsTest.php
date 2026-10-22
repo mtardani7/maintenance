@@ -2,13 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Events\TicketClosed;
+use App\Events\TicketCreated;
 use App\Models\Incident;
 use App\Models\User;
-use App\Events\TicketCreated;
-use App\Events\TicketClosed;
 use App\Notifications\MaintenanceTicketClosedNotification;
 use App\Notifications\MaintenanceTicketCreatedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -26,8 +27,9 @@ class InAppNotificationsTest extends TestCase
             'created_by' => $operator->id, 'updated_by' => $operator->id, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        $response = $this->actingAs($operator, 'sanctum')->postJson('/api/incidents', [
-            'plant_id' => $plantId, 'machine_id' => $machineId, 'problem_type' => 'Machine stopped', 'status' => 'OPEN',
+        $response = $this->actingAs($operator, 'sanctum')->post('/api/incidents', [
+            'plant_id' => $plantId, 'machine_id' => $machineId, 'problem_type' => 'Machine stopped', 'description' => 'Bagian motor mengeluarkan suara kasar.', 'status' => 'OPEN',
+            'files' => [UploadedFile::fake()->image('before.jpg')],
         ])->assertCreated();
 
         return [$response->json('id'), $response->json('ticket_number')];

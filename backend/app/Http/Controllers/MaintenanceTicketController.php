@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Events\TicketClosed;
 use App\Models\Incident;
 use App\Models\MaintenanceTicket;
+use App\Models\MaintenanceTicketAudit;
 use App\Models\User;
 use App\Services\MaintenanceTicketCreator;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,9 +66,88 @@ class MaintenanceTicketController extends Controller
         return response()->json($ticket, 201);
     }
 
-    public function show(MaintenanceTicket $ticket): JsonResponse
+    public function show(Request $request, MaintenanceTicket $ticket): JsonResponse
     {
-        return response()->json($ticket->load(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts', 'attachments']));
+        $relations = ['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts', 'attachments'];
+        if ($request->user()?->role === 'admin') {
+            $relations[] = 'audits.user';
+        }
+
+        return response()->json($ticket->load($relations));
+    }
+
+    public function reopen(Request $request, MaintenanceTicket $ticket): JsonResponse
+    {
+        abort_unless($request->user()?->role === 'admin', 403, 'Only Admin users can reopen tickets.');
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:2000']]);
+
+        DB::transaction(function () use ($ticket, $request, $data): void {
+            $lockedTicket = MaintenanceTicket::query()->lockForUpdate()->findOrFail($ticket->getKey());
+            if ($lockedTicket->status !== 'CLOSED') {
+                abort(422, 'Only closed tickets can be reopened.');
+            }
+
+            $before = $this->ticketAuditValues($lockedTicket);
+            $lockedTicket->update(['status' => 'OPEN']);
+            MaintenanceTicketAudit::query()->create([
+                'maintenance_ticket_id' => $lockedTicket->id,
+                'user_id' => $request->user()->id,
+                'action' => 'REOPEN',
+                'reason' => trim($data['reason']),
+                'before_values' => $before,
+                'after_values' => $this->ticketAuditValues($lockedTicket->fresh()),
+            ]);
+        });
+
+        return response()->json($ticket->fresh()->load(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts', 'attachments', 'audits.user']));
+    }
+
+    public function correctDowntime(Request $request, MaintenanceTicket $ticket): JsonResponse
+    {
+        abort_unless($request->user()?->role === 'admin', 403, 'Only Admin users can correct downtime times.');
+        $data = $request->validate([
+            'actual_downtime_started_at' => ['required', 'date'],
+            'actual_downtime_ended_at' => ['required', 'date', 'after:actual_downtime_started_at'],
+            'reason' => ['required', 'string', 'min:3', 'max:2000'],
+        ]);
+
+        DB::transaction(function () use ($ticket, $request, $data): void {
+            $lockedTicket = MaintenanceTicket::query()->lockForUpdate()->findOrFail($ticket->getKey());
+            $before = $this->ticketAuditValues($lockedTicket);
+            $startedAt = Carbon::parse($data['actual_downtime_started_at'])->utc();
+            $endedAt = Carbon::parse($data['actual_downtime_ended_at'])->utc();
+            $durationSeconds = $startedAt->diffInSeconds($endedAt);
+            abort_if($durationSeconds < 900 || $durationSeconds > 3_600_000, 422, 'Durasi downtime aktual harus antara 15 menit dan 1000 jam.');
+            $durationHours = round($durationSeconds / 3600, 2);
+
+            $lockedTicket->update([
+                'actual_downtime_started_at' => $startedAt,
+                'actual_downtime_ended_at' => $endedAt,
+                'duration_hours' => $durationHours,
+            ]);
+            MaintenanceTicketAudit::query()->create([
+                'maintenance_ticket_id' => $lockedTicket->id,
+                'user_id' => $request->user()->id,
+                'action' => 'DOWNTIME_TIME_CORRECTED',
+                'reason' => trim($data['reason']),
+                'before_values' => $before,
+                'after_values' => $this->ticketAuditValues($lockedTicket->fresh()),
+            ]);
+        });
+
+        return response()->json($ticket->fresh()->load(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts', 'attachments', 'audits.user']));
+    }
+
+    private function ticketAuditValues(MaintenanceTicket $ticket): array
+    {
+        return [
+            'status' => $ticket->status,
+            'duration_hours' => $ticket->duration_hours,
+            'closed_at' => $ticket->closed_at?->toISOString(),
+            'closed_by_id' => $ticket->closed_by_id,
+            'actual_downtime_started_at' => $ticket->actual_downtime_started_at?->toISOString(),
+            'actual_downtime_ended_at' => $ticket->actual_downtime_ended_at?->toISOString(),
+        ];
     }
 
     public function maintenanceUsers(): JsonResponse
@@ -89,7 +170,9 @@ class MaintenanceTicketController extends Controller
             'action' => ['sometimes', 'in:close'],
             'reason' => ['required', 'string', 'min:1', 'max:5000'],
             'action_taken' => ['required', 'string', 'min:1', 'max:5000'],
-            'duration_hours' => ['required', 'numeric', 'min:0.25', 'max:1000'],
+            'duration_hours' => ['sometimes', 'nullable', 'numeric', 'min:0.25', 'max:1000'],
+            'actual_downtime_started_at' => ['sometimes', 'nullable', 'date'],
+            'actual_downtime_ended_at' => ['sometimes', 'nullable', 'date'],
             'solution' => ['required', 'string', 'min:1', 'max:5000'],
         ]);
         $action = $action ?? $data['action'] ?? null;
@@ -104,15 +187,48 @@ class MaintenanceTicketController extends Controller
                 abort(422, 'Only open tickets can be closed.');
             }
 
+            $start = isset($data['actual_downtime_started_at'])
+                ? Carbon::parse($data['actual_downtime_started_at'])->utc()
+                : $lockedTicket->actual_downtime_started_at;
+            $endWasProvided = array_key_exists('actual_downtime_ended_at', $data) && $data['actual_downtime_ended_at'] !== null;
+            $end = $endWasProvided
+                ? Carbon::parse($data['actual_downtime_ended_at'])->utc()
+                : $lockedTicket->actual_downtime_ended_at;
+            if ($start && ! $end && array_key_exists('actual_downtime_started_at', $data)) {
+                $end = now();
+            }
+            abort_if(($start === null) !== ($end === null), 422, 'Waktu downtime belum lengkap. Isi waktu mulai dan waktu selesai aktual.');
+            if ($start && $end) {
+                abort_if($end->lessThanOrEqualTo($start), 422, 'Waktu selesai harus setelah waktu mulai.');
+                $actualHours = $start->diffInSeconds($end) / 3600;
+                abort_if($actualHours < 0.25 || $actualHours > 1000, 422, 'Durasi downtime harus antara 15 menit dan 1000 jam.');
+            } else {
+                abort_unless(isset($data['duration_hours']), 422, 'Isi waktu mulai downtime atau durasi pekerjaan.');
+            }
+            $before = $this->ticketAuditValues($lockedTicket);
+            $durationHours = $start && $end
+                ? round($start->diffInSeconds($end) / 3600, 2)
+                : $data['duration_hours'];
             $lockedTicket->update([
                 'status' => 'CLOSED',
                 'reason' => trim($data['reason']),
                 'action_taken' => trim($data['action_taken']),
                 'executor_id' => auth()->id(),
-                'duration_hours' => $data['duration_hours'],
+                'duration_hours' => $durationHours,
+                'actual_downtime_started_at' => $start,
+                'actual_downtime_ended_at' => $end,
                 'solution' => trim($data['solution']),
                 'closed_at' => now(),
                 'closed_by_id' => $request->user()->id,
+            ]);
+
+            MaintenanceTicketAudit::query()->create([
+                'maintenance_ticket_id' => $lockedTicket->id,
+                'user_id' => $request->user()->id,
+                'action' => 'CLOSE',
+                'reason' => 'Tiket ditutup dengan Work Detail.',
+                'before_values' => $before,
+                'after_values' => $this->ticketAuditValues($lockedTicket->fresh()),
             ]);
 
             Incident::query()
@@ -159,6 +275,10 @@ class MaintenanceTicketController extends Controller
 
         if ($ticket->status === 'CLOSED') {
             return response()->json(['message' => 'Closed tickets are historical records and cannot be deleted.'], 422);
+        }
+
+        if ($ticket->audits()->exists()) {
+            return response()->json(['message' => 'Tickets with an audit history cannot be deleted.'], 422);
         }
 
         $ticket->delete();
