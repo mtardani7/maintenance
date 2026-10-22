@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, RotateCcw } from 'lucide-react';
+import { BarChart3, Download, RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getPlantOptions, type PlantOption } from '@/lib/maintenance-api';
 import { exportReports, getReportMetrics, operationsApiMessage } from '@/lib/operations-api';
@@ -39,17 +39,24 @@ export function ReportsDashboard() {
   function resetFilters() { setFilters({}); }
 
   return <div className="reports-dashboard">
+    <div className="reports-dashboard__intro">
+      <div><span className="reports-dashboard__icon"><BarChart3 aria-hidden="true" /></span><div><h2>Ringkasan kinerja</h2><p>Pantau indikator utama dan pola gangguan pemeliharaan.</p></div></div>
+      <span className="reports-dashboard__period">Data operasional</span>
+    </div>
     <div className="report-controls" aria-label="Filter laporan">
       <label>Plant<select value={filters.plant ?? ''} onChange={(event) => setFilters({ ...filters, plant: event.target.value || undefined })}><option value="">Semua Plant</option>{plants.map((plant) => <option key={plant.id} value={plant.id}>{plant.code} — {plant.name}</option>)}</select></label>
       <label>Tanggal<input type="date" value={filters.date ?? ''} onChange={(event) => setFilters({ ...filters, date: event.target.value || undefined })} /></label>
-      <button className="secondary-action" type="button" onClick={resetFilters}><RotateCcw aria-hidden="true" />Reset filter</button>
-      <button className="secondary-action" type="button" onClick={() => void exportReport()} disabled={exporting}><Download aria-hidden="true" />{exporting ? 'Menyiapkan...' : 'Ekspor laporan'}</button>
+      <div className="report-controls__actions">
+        <button className="secondary-action" type="button" onClick={resetFilters}><RotateCcw aria-hidden="true" />Reset filter</button>
+        <button className="secondary-action report-export-action" type="button" onClick={() => void exportReport()} disabled={exporting}><Download aria-hidden="true" />{exporting ? 'Menyiapkan...' : 'Ekspor laporan'}</button>
+      </div>
     </div>
     {error ? <ErrorState title="Laporan belum tersedia" description="Periksa koneksi lalu coba muat ulang." onRetry={() => setRetryKey((value) => value + 1)} /> : loading ? <>
       <div className="report-metric-grid">{cards.map((card) => <CardSkeleton key={card.key} className="metric-card" />)}</div>
       <div className="report-tables">{["Pemeliharaan per Plant", "Mesin dengan gangguan terbanyak", "Jenis gangguan terbanyak"].map((title) => <section className="work-panel report-table" key={title}><div className="work-panel__header"><h3>{title}</h3></div><TableSkeleton className="report-data-scroll" tableClassName="report-data-table" headers={["Data", "Jumlah"]} rows={4} /></section>)}</div>
     </> : metrics && Object.keys(metrics).length ? <>
-      <div className="report-metric-grid">{cards.map((card) => <article className="metric-card" key={card.key}><span className="metric-card__label">{card.label}</span><strong className="metric-card__value">{metricValue(metrics[card.key])}</strong></article>)}</div>
+      <div className="report-metric-grid" aria-label="Metrik laporan">{cards.map((card) => <article className="metric-card" key={card.key}><span className="metric-card__label">{card.label}</span><strong className="metric-card__value">{metricValue(metrics[card.key])}</strong><span className="metric-card__status">Indikator pemeliharaan</span></article>)}</div>
+      <div className="reports-dashboard__section-heading"><div><h2>Analisis pemeliharaan</h2><p>Area dan kategori dengan aktivitas tertinggi.</p></div></div>
       <div className="report-tables"><ReportTable title="Pemeliharaan per Plant" rows={metrics.maintenanceByPlant?.map((item) => [item.plant, String(item.total)]) ?? []} /><ReportTable title="Mesin dengan gangguan terbanyak" rows={metrics.topProblematicMachines?.map((item) => [item.machine, String(item.total)]) ?? []} /><ReportTable title="Jenis gangguan terbanyak" rows={metrics.topFailureTypes?.map((item) => [item.type, String(item.total)]) ?? []} /></div>
     </> : <EmptyState title="Belum ada data laporan" description="Data akan tampil setelah aktivitas pemeliharaan tersedia." />}
   </div>;
