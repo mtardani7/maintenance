@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use ZipArchive;
 
 class ReportsController extends Controller
 {
@@ -25,12 +26,13 @@ class ReportsController extends Controller
             'search' => ['nullable', 'string', 'max:120'],
             'sort' => ['nullable', 'in:newest,oldest,incidents_desc,incidents_asc'],
         ]);
-        if (!empty($data['machine_id']) && !empty($data['plant_id'])) {
+        if (! empty($data['machine_id']) && ! empty($data['plant_id'])) {
             abort_unless(DB::table('machines')->where('id', $data['machine_id'])->where('plant_id', $data['plant_id'])->exists(), 422, 'Mesin tidak termasuk dalam plant yang dipilih.');
         }
         $data['start_date'] ??= now('Asia/Jakarta')->subDays(29)->toDateString();
         $data['end_date'] ??= now('Asia/Jakarta')->toDateString();
         abort_if(Carbon::parse($data['start_date'])->diffInDays(Carbon::parse($data['end_date'])) > 1826, 422, 'Rentang laporan maksimal lima tahun.');
+
         return $data;
     }
 
@@ -38,6 +40,7 @@ class ReportsController extends Controller
     {
         $from = Carbon::parse($filters['start_date'], 'Asia/Jakarta')->startOfDay()->utc();
         $until = Carbon::parse($filters['end_date'], 'Asia/Jakarta')->startOfDay()->addDay()->utc();
+
         return $query->where($column, '>=', $from)->where($column, '<', $until);
     }
 
@@ -49,6 +52,7 @@ class ReportsController extends Controller
             ->leftJoin('users as u', 'u.id', '=', 't.executor_id')
             ->when($filters['plant_id'] ?? null, fn ($q, $id) => $q->where('t.plant_id', $id))
             ->when($filters['machine_id'] ?? null, fn ($q, $id) => $q->where('t.machine_id', $id));
+
         return $inPeriod ? $this->withinPeriod($query, 't.created_at', $filters) : $query;
     }
 
@@ -60,6 +64,7 @@ class ReportsController extends Controller
             ->leftJoin('maintenance_tickets as t', 't.id', '=', 'i.maintenance_ticket_id')
             ->when($filters['plant_id'] ?? null, fn ($q, $id) => $q->where('i.plant_id', $id))
             ->when($filters['machine_id'] ?? null, fn ($q, $id) => $q->where('i.machine_id', $id));
+
         return $this->withinPeriod($query, 'i.created_at', $filters);
     }
 
@@ -81,6 +86,7 @@ class ReportsController extends Controller
             $result[] = ['period' => $period, $alias => (int) ($items->get($period)?->total ?? 0)];
             $cursor->add($monthly ? 'month' : 'day', 1);
         }
+
         return $result;
     }
 
@@ -127,6 +133,7 @@ class ReportsController extends Controller
             $query = (clone $partBase)->select('s.id', 's.name', 's.material_code', 's.quantity', 's.created_at', 's.remark', 't.ticket_number', 'm.code as machine_code', 'm.name as machine', 'p.name as plant')->when($filters['search'] ?? null, fn ($q, $s) => $q->where(fn ($w) => $w->whereRaw('LOWER(s.name) LIKE ?', ['%'.strtolower($s).'%'])->orWhereRaw('LOWER(s.material_code) LIKE ?', ['%'.strtolower($s).'%'])))->orderBy('s.created_at', ($filters['sort'] ?? 'newest') === 'oldest' ? 'asc' : 'desc');
             $rows = $query->paginate($perPage, ['*'], 'page', $page);
         }
+
         return response()->json([
             'filters' => ['start_date' => $filters['start_date'], 'end_date' => $filters['end_date'], 'plant_id' => $filters['plant_id'] ?? null, 'machine_id' => $filters['machine_id'] ?? null],
             'summary' => $summary,
@@ -158,17 +165,56 @@ class ReportsController extends Controller
             'spare-parts' => $spareExport->select('s.created_at as Tanggal', 'p.name as Plant', 'm.name as Mesin', 't.ticket_number as Nomor tiket', 's.name as Spare part', 's.material_code as Kode material', 's.quantity as Kuantitas')->orderBy('s.created_at', ($filters['sort'] ?? 'newest') === 'oldest' ? 'asc' : 'desc'),
             default => $machineExport,
         };
+
         return response()->streamDownload(function () use ($query): void {
-            $output = fopen('php://output', 'w');
-            fwrite($output, "\xEF\xBB\xBF");
-            $first = true;
-            foreach ($query->cursor() as $row) {
-                $values = array_values((array) $row);
-                if ($first) { fputcsv($output, array_keys((array) $row)); $first = false; }
-                fputcsv($output, $values);
+            abort_unless(class_exists(ZipArchive::class), 500, 'Ekspor Excel membutuhkan ekstensi PHP zip.');
+            $path = tempnam(sys_get_temp_dir(), 'maintenance-report-');
+            abort_if($path === false, 500, 'Tidak dapat menyiapkan berkas Excel.');
+
+            try {
+                $rows = [];
+                foreach ($query->cursor() as $row) {
+                    $rows[] = (array) $row;
+                }
+                $headers = $rows === [] ? ['Tidak ada data'] : array_keys($rows[0]);
+                $sheetRows = [$headers];
+                foreach ($rows as $row) {
+                    $sheetRows[] = array_values($row);
+                }
+
+                $sheet = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+                foreach ($sheetRows as $rowIndex => $cells) {
+                    $excelRow = $rowIndex + 1;
+                    $sheet .= '<row r="'.$excelRow.'">';
+                    foreach ($cells as $columnIndex => $value) {
+                        $cell = '';
+                        for ($n = $columnIndex + 1; $n > 0; $n = intdiv($n - 1, 26)) {
+                            $cell = chr(65 + (($n - 1) % 26)).$cell;
+                        }
+                        $reference = $cell.$excelRow;
+                        if (is_int($value) || is_float($value)) {
+                            $sheet .= '<c r="'.$reference.'"><v>'.$value.'</v></c>';
+                        } else {
+                            $text = htmlspecialchars((string) ($value ?? ''), ENT_XML1 | ENT_QUOTES, 'UTF-8');
+                            $sheet .= '<c r="'.$reference.'" t="inlineStr"><is><t xml:space="preserve">'.$text.'</t></is></c>';
+                        }
+                    }
+                    $sheet .= '</row>';
+                }
+                $sheet .= '</sheetData></worksheet>';
+
+                $zip = new ZipArchive;
+                abort_unless($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true, 500, 'Tidak dapat membuat berkas Excel.');
+                $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+                $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+                $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Laporan" sheetId="1" r:id="rId1"/></sheets></workbook>');
+                $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+                $zip->addFromString('xl/worksheets/sheet1.xml', $sheet);
+                $zip->close();
+                readfile($path);
+            } finally {
+                @unlink($path);
             }
-            if ($first) fputcsv($output, ['Tidak ada data']);
-            fclose($output);
-        }, "laporan-{$category}-{$filters['start_date']}-{$filters['end_date']}.csv", ['Content-Type' => 'text/csv; charset=UTF-8']);
+        }, "laporan-{$category}-{$filters['start_date']}-{$filters['end_date']}.xlsx", ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
     }
 }

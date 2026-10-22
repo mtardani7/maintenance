@@ -17,6 +17,7 @@ class MaintenanceReportsTest extends TestCase
     {
         $plant = DB::table('plants')->insertGetId(['code' => 'PLT-1', 'name' => 'Plant Satu', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
         $machine = DB::table('machines')->insertGetId(['plant_id' => $plant, 'code' => 'MC-1', 'name' => 'Mesin Satu', 'section' => 'Line A', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+
         return [$plant, $machine];
     }
 
@@ -71,7 +72,7 @@ class MaintenanceReportsTest extends TestCase
         $this->actingAs($admin, 'sanctum')->getJson('/api/reports/metrics?start_date=2026-10-22&end_date=2026-10-01')->assertUnprocessable();
     }
 
-    public function test_filtered_ticket_export_is_csv_and_only_contains_matching_rows(): void
+    public function test_filtered_ticket_export_is_excel_and_only_contains_matching_rows(): void
     {
         [$plant, $machine] = $this->createLocations();
         $admin = User::factory()->create(['role' => 'admin']);
@@ -82,9 +83,10 @@ class MaintenanceReportsTest extends TestCase
         ]);
         $response = $this->actingAs($admin, 'sanctum')->get('/api/reports/export?start_date=2026-10-01&end_date=2026-10-22&plant_id='.$plant.'&category=tickets');
         $response->assertOk();
-        $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
-        $this->assertStringContainsString('T-CSV', $response->streamedContent());
-        $this->assertStringNotContainsString('T-OTHER', $response->streamedContent());
+        $this->assertStringContainsString('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $response->headers->get('content-type'));
+        $sheet = $this->exportSheet($response->streamedContent());
+        $this->assertStringContainsString('T-CSV', $sheet);
+        $this->assertStringNotContainsString('T-OTHER', $sheet);
     }
 
     public function test_report_categories_return_paginated_machine_incident_and_spare_part_data(): void
@@ -112,10 +114,26 @@ class MaintenanceReportsTest extends TestCase
             ->assertOk()->assertJsonPath('spare_parts.transactions', 1)->assertJsonPath('spare_parts.quantity', 2)->assertJsonPath('rows.data.0.quantity', 2);
         $machineExport = $this->get('/api/reports/export?start_date=2026-10-01&end_date=2026-10-22&category=machines');
         $machineExport->assertOk();
-        $this->assertStringContainsString('MC-1', $machineExport->streamedContent());
+        $this->assertStringContainsString('MC-1', $this->exportSheet($machineExport->streamedContent()));
         $spareExport = $this->get('/api/reports/export?start_date=2026-10-01&end_date=2026-10-22&category=spare-parts');
         $spareExport->assertOk();
-        $this->assertStringContainsString('SNS-1', $spareExport->streamedContent());
+        $this->assertStringContainsString('SNS-1', $this->exportSheet($spareExport->streamedContent()));
+    }
+
+    private function exportSheet(string $content): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'report-test-');
+        file_put_contents($path, $content);
+        try {
+            $zip = new \ZipArchive;
+            $this->assertTrue($zip->open($path) === true);
+            $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+            $zip->close();
+
+            return $sheet;
+        } finally {
+            @unlink($path);
+        }
     }
 
     public function test_date_filter_uses_indonesia_day_boundaries_for_utc_timestamps(): void

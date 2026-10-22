@@ -1047,7 +1047,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* Historical reporting workspace */
-.reports-dashboard .report-controls { grid-template-columns: repeat(4, minmax(130px, 1fr)); align-items: end; }
+.reports-dashboard .report-controls { grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: end; }
 .reports-dashboard .report-controls > label { min-width: 0; }
 .reports-dashboard .report-controls select:disabled { cursor: not-allowed; opacity: .6; }
 .reports-dashboard .report-search { box-sizing: border-box; display: flex !important; align-items: center; gap: 9px; grid-column: span 2; min-width: 0; min-height: 42px; margin-top: 20px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: 0 11px; color: var(--text-muted); }
@@ -1055,7 +1055,7 @@ a { color: inherit; text-decoration: none; }
 .reports-dashboard .report-search svg { position: static; flex: 0 0 17px; width: 17px; height: 17px; color: var(--text-muted); }
 .reports-dashboard .report-search input { box-sizing: border-box; flex: 1 1 auto; width: 100%; min-width: 0; height: 100%; min-height: 0; margin: 0; border: 0; border-radius: 0; outline: 0; background: transparent; padding: 0; color: var(--text-primary); box-shadow: none; }
 .reports-dashboard .report-search input:focus { border: 0; outline: 0; box-shadow: none; }
-.reports-dashboard .report-controls__actions { grid-column: span 2; }
+.reports-dashboard .report-controls__actions { grid-column: 4 / -1; }
 .reports-dashboard .report-controls .report-apply-action { border-color: #176b4a; background: #edf6f1; color: #176b4a; }
 .reports-dashboard .report-tabs { display: flex; flex-wrap: wrap; gap: 5px; overflow: visible; margin: 0 0 20px; border-bottom: 1px solid var(--line); }
 .reports-dashboard .report-tab { position: relative; flex: 0 0 auto; min-height: 44px; white-space: nowrap; border: 0; background: transparent; padding: 0 14px; color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
@@ -3773,7 +3773,8 @@ html[data-theme="dark"] .plant-browser .plant-modal__header .icon-button:hover {
 .reports-dashboard .report-controls .secondary-action svg { width: 15px; height: 15px; }
 .reports-dashboard .report-controls .report-export-action { border-color: #176b4a; background: #176b4a; color: #fff; }
 .reports-dashboard .report-controls .report-export-action:hover { border-color: #10563b; background: #10563b; color: #fff; }
-.reports-dashboard .report-controls .report-export-action:disabled { cursor: wait; opacity: .7; }
+.reports-dashboard .report-controls .report-export-action:disabled { cursor: not-allowed; opacity: .7; }
+.reports-dashboard .report-controls .report-export-action--loading:disabled { cursor: wait; }
 .reports-dashboard .report-metric-grid .metric-card { position: relative; overflow: hidden; min-height: 138px; border-radius: 14px; padding: 19px; transition: transform .16s ease, box-shadow .16s ease; }
 .reports-dashboard .report-metric-grid .metric-card::before { position: absolute; inset: 0 auto 0 0; width: 3px; background: #31966a; content: ''; }
 .reports-dashboard .report-metric-grid .metric-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgb(15 23 42 / .08); }
