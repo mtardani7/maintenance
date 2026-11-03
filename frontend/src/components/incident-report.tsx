@@ -52,6 +52,7 @@ export function IncidentReport() {
   const [reportOpen, setReportOpen] = useState(false);
   const [qrPrefill, setQrPrefill] = useState<QrPrefill | null>(null);
   const submitLock = useRef(false);
+  const reportBodyRef = useRef<HTMLDivElement>(null);
   const [historySearchInput, setHistorySearchInput] = useState('');
   const [historySearch, setHistorySearch] = useState('');
   const [historyPlant, setHistoryPlant] = useState('');
@@ -205,7 +206,8 @@ export function IncidentReport() {
     setTouched(true);
     const validationError = validate();
     if (validationError) {
-      setError(validationError);
+      setError('');
+      reportBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     setError('');
@@ -242,8 +244,10 @@ export function IncidentReport() {
   return <>
   {successOpen && <div className="incident-modal-backdrop incident-success-backdrop" role="presentation"><section className="incident-success-modal" role="alertdialog" aria-modal="true" aria-labelledby="incident-success-title"><CircleCheck className="incident-success-icon" aria-hidden="true" /><h2 id="incident-success-title">Laporan Berhasil Dibuat</h2><p>Laporan insiden berhasil dibuat.</p>{successTicketNumber ? <><p>Tiket Maintenance berhasil dibuat.</p><div className="ticket-success-number"><span>Nomor Tiket Maintenance</span><strong>{successTicketNumber}</strong></div></> : <p>Tidak ada tiket maintenance yang dibuat.</p>}<button className="primary-button" type="button" onClick={acknowledgeSuccess}>OK</button></section></div>}
   {!plantsLoading && plants.length === 0 && !error && <EmptyState title="Tidak ada Plant tersedia" description="Plant belum tersedia. Riwayat insiden tetap dapat ditinjau." />}
-  {reportOpen && <div className="incident-modal-backdrop incident-form-backdrop" role="dialog" aria-modal="true" aria-labelledby="incident-form-title"><section className="incident-form-modal"><div className="incident-form-modal__header"><div><p className="eyebrow">Laporkan masalah pada mesin.</p><h2 id="incident-form-title">Buat Laporan Insiden</h2></div><button className="icon-button" type="button" onClick={() => setReportOpen(false)} aria-label="Tutup form insiden"><X aria-hidden="true" /></button></div><div className="incident-form-modal__body"><div className="report-layout">
+  {reportOpen && <div className="incident-modal-backdrop incident-form-backdrop" role="dialog" aria-modal="true" aria-labelledby="incident-form-title"><section className="incident-form-modal"><div className="incident-form-modal__header"><div><p className="eyebrow">Laporkan masalah pada mesin.</p><h2 id="incident-form-title">Buat Laporan Insiden</h2></div><button className="icon-button" type="button" onClick={() => setReportOpen(false)} aria-label="Tutup form insiden"><X aria-hidden="true" /></button></div><div className="incident-form-modal__body" ref={reportBodyRef}><div className="report-layout">
     <div className="report-main">
+      {validationError && <p className="incident-validation-summary" role="alert" aria-live="assertive">{validationError}</p>}
+      {error && <ErrorState title="Laporan belum tersimpan" description="Periksa kembali data laporan, lalu coba lagi." onRetry={() => void submitReport()} />}
       <div className="stepper"><span className="stepper__active">01 Lokasi</span><span className={plantId && machineId ? 'stepper__active' : ''}>02 Masalah</span><span className={resolution ? 'stepper__active' : ''}>03 Tindakan awal</span></div>
       <section className="form-card incident-form-section">
         <div className="incident-section-heading"><span className="incident-section-icon"><Factory aria-hidden="true" /></span><div><p className="eyebrow">Langkah 1</p><h2>Pilih lokasi dan mesin</h2><p>Pilih plant dan mesin yang mengalami masalah.</p></div></div>
@@ -265,8 +269,6 @@ export function IncidentReport() {
         <div className="resolution-grid incident-resolution-grid"><button type="button" className={`resolution-button incident-resolution-card ${resolution === 'resolved' ? 'resolution-button--selected' : ''}`} onClick={() => setResolution('resolved')} disabled={submitting}><Check aria-hidden="true" /><span><strong>Dapat diselesaikan Operator</strong><small>Operator dapat menangani masalah ini.</small></span></button><button type="button" className={`resolution-button incident-resolution-card ${resolution === 'cannot-resolve' ? 'resolution-button--selected' : ''}`} onClick={() => setResolution('cannot-resolve')} disabled={submitting}><Wrench aria-hidden="true" /><span><strong>Tidak dapat diselesaikan</strong><small>Masalah akan diteruskan ke Maintenance.</small></span></button></div>
         {resolution === 'resolved' && <div className="follow-up-fields"><label className="form-field">Tindakan yang dilakukan<textarea value={actionTaken} onChange={(event) => setActionTaken(event.target.value)} rows={3} placeholder="Jelaskan tindakan operator." disabled={submitting} /></label><label className="form-field">Hasil tindakan<textarea value={result} onChange={(event) => setResult(event.target.value)} rows={3} placeholder="Jelaskan hasil setelah tindakan." disabled={submitting} /></label></div>}
       </section>
-      {validationError && <p className="form-inline-error" role="alert">{validationError}</p>}
-      {error && <ErrorState title="Laporan belum tersimpan" description="Periksa kembali data laporan, lalu coba lagi." onRetry={() => void submitReport()} />}
     </div>
     <aside className="report-aside"><p className="eyebrow">Ringkasan</p><h2>{selectedPlant?.name ?? 'Pilih plant'}</h2><p>{selectedMachine?.name ?? 'Pilih mesin untuk melanjutkan laporan.'}</p></aside>
   </div></div><div className="incident-form-modal__footer"><button className="secondary-action" type="button" onClick={() => setReportOpen(false)} disabled={submitting}>Batal</button><button className="primary-button" type="button" onClick={() => void submitReport()} disabled={submitting || machinesLoading}><ClipboardCheck aria-hidden="true" />{submitting ? attachmentFiles.length ? 'Mengunggah...' : 'Menyimpan...' : 'Simpan Laporan'}</button></div></section></div>}
