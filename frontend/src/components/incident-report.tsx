@@ -8,6 +8,7 @@ import type { Incident, Machine, ResolvedMachineQr } from '@/lib/maintenance-typ
 import { DataPagination, EmptyState, ErrorState, MaintenanceTable, PaginationSkeleton, Skeleton, TableSkeleton } from './ui';
 import { MediaAttachmentPicker } from './media-attachment-picker';
 import { ProtectedAttachmentLink } from './protected-attachment-link';
+import { useAuthUser } from './auth-boundary';
 
 const problemTypes = [
   { value: 'Machine stopped', label: 'Mesin berhenti', detail: 'Mesin tidak beroperasi', icon: Settings2 },
@@ -25,8 +26,13 @@ function incidentStatusLabel(status?: string) {
 
 type Resolution = 'resolved' | 'cannot-resolve' | '';
 type QrPrefill = ResolvedMachineQr & { payload: string };
+type IncidentField = 'plant' | 'machine' | 'problemType' | 'description' | 'attachments' | 'resolution' | 'actionTaken' | 'result';
+type IncidentFieldErrors = Partial<Record<IncidentField, string>>;
+
+const reportSteps = ['Lokasi', 'Masalah', 'Tindakan awal', 'Periksa kembali'] as const;
 
 export function IncidentReport() {
+  const authUser = useAuthUser();
   const [plants, setPlants] = useState<PlantOption[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [machineDirectory, setMachineDirectory] = useState<Machine[]>([]);
@@ -46,7 +52,8 @@ export function IncidentReport() {
   const [error, setError] = useState('');
   const [successOpen, setSuccessOpen] = useState(false);
   const [successTicketNumber, setSuccessTicketNumber] = useState('');
-  const [touched, setTouched] = useState(false);
+  const [formStep, setFormStep] = useState(0);
+  const [fieldErrors, setFieldErrors] = useState<IncidentFieldErrors>({});
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
   const [reportOpen, setReportOpen] = useState(false);
@@ -88,7 +95,8 @@ export function IncidentReport() {
     setResult('');
     setAttachmentFiles([]);
     setQrPrefill(null);
-    setTouched(false);
+    setFormStep(0);
+    setFieldErrors({});
     void refreshHistory();
   }
 
@@ -100,6 +108,12 @@ export function IncidentReport() {
     getMachines({ page: 1, per_page: 100 }).then(setMachineDirectory).catch(() => setMachineDirectory([]));
   }, []);
 
+  useEffect(() => {
+    if (!reportOpen || qrPrefill || authUser?.role !== 'operator' || plantId) return;
+    const defaultPlant = plants.find((plant) => plant.code.trim().toUpperCase() === 'RX03');
+    if (defaultPlant) setPlantId(String(defaultPlant.id));
+  }, [authUser?.role, plantId, plants, qrPrefill, reportOpen]);
+
   useEffect(() => { void refreshHistory(); }, []);
 
   useEffect(() => {
@@ -107,7 +121,8 @@ export function IncidentReport() {
       const detail = (event as CustomEvent<QrPrefill | undefined>).detail;
       setReportOpen(true);
       setError('');
-      setTouched(false);
+      setFormStep(0);
+      setFieldErrors({});
       if (detail) {
         setQrPrefill(detail);
         setPlantId(String(detail.plant.id));
@@ -172,16 +187,66 @@ export function IncidentReport() {
   const hasActiveHistoryFilters = Boolean(historySearchInput.trim() || historyPlant || historyMachine || historyStatus || historyProblemType || historySort !== 'newest');
   const totalHistoryPages = Math.max(1, Math.ceil(filteredIncidents.length / historyPageSize));
   const visibleIncidents = filteredIncidents.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
-  function validate() {
-    if (!plantId) return 'Pilih plant terlebih dahulu.';
-    if (!machineId) return 'Pilih mesin terlebih dahulu.';
-    if (!problemType) return 'Pilih jenis masalah.';
-    if (description.trim().length < 10) return 'Jelaskan kondisi sebelum perbaikan dan lokasi kerusakan minimal 10 karakter.';
-    if (!attachmentFiles.length) return 'Lampirkan minimal satu foto atau video kondisi mesin sebelum perbaikan.';
-    if (!resolution) return 'Pilih apakah masalah dapat diselesaikan operator.';
-    if (resolution === 'resolved' && actionTaken.trim().length < 5) return 'Jelaskan tindakan operator minimal 5 karakter.';
-    if (resolution === 'resolved' && result.trim().length < 5) return 'Jelaskan hasil tindakan minimal 5 karakter.';
-    return '';
+  function collectValidationErrors(): IncidentFieldErrors {
+    const errors: IncidentFieldErrors = {};
+    if (!plantId) errors.plant = 'Pilih plant terlebih dahulu.';
+    if (!machineId) errors.machine = 'Pilih mesin terlebih dahulu.';
+    if (!problemType) errors.problemType = 'Pilih jenis masalah.';
+    if (description.trim().length < 10) errors.description = 'Jelaskan minimal 10 karakter.';
+    if (!attachmentFiles.length) errors.attachments = 'Lampirkan minimal satu foto atau video.';
+    if (!resolution) errors.resolution = 'Pilih salah satu tindakan awal.';
+    if (resolution === 'resolved' && actionTaken.trim().length < 5) errors.actionTaken = 'Jelaskan tindakan minimal 5 karakter.';
+    if (resolution === 'resolved' && result.trim().length < 5) errors.result = 'Jelaskan hasil minimal 5 karakter.';
+    return errors;
+  }
+
+  function errorsForStep(step: number, allErrors = collectValidationErrors()): IncidentFieldErrors {
+    const fields: IncidentField[][] = [
+      ['plant', 'machine'],
+      ['problemType', 'description', 'attachments'],
+      ['resolution', 'actionTaken', 'result'],
+      [],
+    ];
+    return Object.fromEntries(fields[step].filter((field) => allErrors[field]).map((field) => [field, allErrors[field]])) as IncidentFieldErrors;
+  }
+
+  function clearFieldError(field: IncidentField) {
+    setError('');
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function openReportForm() {
+    const defaultPlant = authUser?.role === 'operator'
+      ? plants.find((plant) => plant.code.trim().toUpperCase() === 'RX03')
+      : undefined;
+    setReportOpen(true);
+    setQrPrefill(null);
+    setPlantId(defaultPlant ? String(defaultPlant.id) : '');
+    setMachineId('');
+    setFormStep(0);
+    setFieldErrors({});
+    setError('');
+  }
+
+  function continueReport() {
+    const errors = errorsForStep(formStep);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      const field = Object.keys(errors)[0] as IncidentField;
+      const controlIds: Record<IncidentField, string> = { plant: 'incident-plant', machine: 'incident-machine', problemType: 'incident-problem-type', description: 'incident-description', attachments: 'incident-attachments', resolution: 'incident-resolution', actionTaken: 'incident-action-taken', result: 'incident-result' };
+      window.requestAnimationFrame(() => {
+        reportBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        document.getElementById(controlIds[field])?.focus({ preventScroll: true });
+      });
+      return;
+    }
+    setError('');
+    setFormStep((current) => Math.min(reportSteps.length - 1, current + 1));
+    reportBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function resetHistoryFilters() {
@@ -203,9 +268,11 @@ export function IncidentReport() {
 
   async function submitReport() {
     if (submitLock.current) return;
-    setTouched(true);
-    const validationError = validate();
-    if (validationError) {
+    const validationErrors = collectValidationErrors();
+    if (Object.keys(validationErrors).length) {
+      setFieldErrors(validationErrors);
+      const firstInvalidStep = validationErrors.plant || validationErrors.machine ? 0 : validationErrors.problemType || validationErrors.description || validationErrors.attachments ? 1 : 2;
+      setFormStep(firstInvalidStep);
       setError('');
       reportBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -235,47 +302,51 @@ export function IncidentReport() {
     }
   }
 
-  const validationError = touched ? validate() : '';
-  const descriptionError = touched && description.trim().length < 10 ? 'Jelaskan kondisi sebelum perbaikan dan lokasi kerusakan (minimal 10 karakter).' : '';
+  const validationError = Object.keys(fieldErrors).length ? 'Periksa bagian yang ditandai sebelum melanjutkan.' : '';
   const selectedMachine: Machine | undefined = qrPrefill
     ? { ...qrPrefill.machine, section: qrPrefill.machine.section ?? undefined, plant_id: qrPrefill.plant.id, is_active: true }
     : machines.find((machine) => String(machine.id) === machineId);
 
   return <>
-  {successOpen && <div className="incident-modal-backdrop incident-success-backdrop" role="presentation"><section className="incident-success-modal" role="alertdialog" aria-modal="true" aria-labelledby="incident-success-title"><CircleCheck className="incident-success-icon" aria-hidden="true" /><h2 id="incident-success-title">Laporan Berhasil Dibuat</h2><p>Laporan insiden berhasil dibuat.</p>{successTicketNumber ? <><p>Tiket Maintenance berhasil dibuat.</p><div className="ticket-success-number"><span>Nomor Tiket Maintenance</span><strong>{successTicketNumber}</strong></div></> : <p>Tidak ada tiket maintenance yang dibuat.</p>}<button className="primary-button" type="button" onClick={acknowledgeSuccess}>OK</button></section></div>}
+  {successOpen && <div className="incident-modal-backdrop incident-success-backdrop" role="presentation"><section className="incident-success-modal" role="alertdialog" aria-modal="true" aria-labelledby="incident-success-title"><CircleCheck className="incident-success-icon" aria-hidden="true" /><h2 id="incident-success-title">Laporan berhasil dikirim</h2>{successTicketNumber ? <><p>Laporan sudah tersimpan dan diteruskan ke tim Maintenance. Simpan nomor tiket ini untuk melihat perkembangannya.</p><div className="ticket-success-number"><span>Nomor Tiket Maintenance</span><strong>{successTicketNumber}</strong></div></> : <p>Laporan sudah tercatat sebagai selesai. Tidak ada tiket Maintenance yang perlu ditindaklanjuti.</p>}<button className="primary-button" type="button" onClick={acknowledgeSuccess}>Kembali ke riwayat</button></section></div>}
   {!plantsLoading && plants.length === 0 && !error && <EmptyState title="Tidak ada Plant tersedia" description="Plant belum tersedia. Riwayat insiden tetap dapat ditinjau." />}
   {reportOpen && <div className="incident-modal-backdrop incident-form-backdrop" role="dialog" aria-modal="true" aria-labelledby="incident-form-title"><section className="incident-form-modal"><div className="incident-form-modal__header"><div><p className="eyebrow">Laporkan masalah pada mesin.</p><h2 id="incident-form-title">Buat Laporan Insiden</h2></div><button className="icon-button" type="button" onClick={() => setReportOpen(false)} aria-label="Tutup form insiden"><X aria-hidden="true" /></button></div><div className="incident-form-modal__body" ref={reportBodyRef}><div className="report-layout">
     <div className="report-main">
       {validationError && <p className="incident-validation-summary" role="alert" aria-live="assertive">{validationError}</p>}
       {error && <ErrorState title="Laporan belum tersimpan" description="Periksa kembali data laporan, lalu coba lagi." onRetry={() => void submitReport()} />}
-      <div className="stepper"><span className="stepper__active">01 Lokasi</span><span className={plantId && machineId ? 'stepper__active' : ''}>02 Masalah</span><span className={resolution ? 'stepper__active' : ''}>03 Tindakan awal</span></div>
-      <section className="form-card incident-form-section">
+      <nav className="incident-wizard-steps" aria-label="Tahapan laporan">
+        <p>Langkah {formStep + 1} dari {reportSteps.length}</p>
+        <div>{reportSteps.map((label, index) => <button type="button" key={label} className={index === formStep ? 'is-current' : index < formStep ? 'is-complete' : ''} aria-current={index === formStep ? 'step' : undefined} disabled={index > formStep} onClick={() => { setFormStep(index); setFieldErrors({}); setError(''); reportBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}><span>{index < formStep ? '✓' : index + 1}</span>{label}</button>)}</div>
+      </nav>
+      <p className="incident-required-note"><b>*</b> Wajib diisi</p>
+      <section className="form-card incident-form-section" hidden={formStep !== 0}>
         <div className="incident-section-heading"><span className="incident-section-icon"><Factory aria-hidden="true" /></span><div><p className="eyebrow">Langkah 1</p><h2>Pilih lokasi dan mesin</h2><p>Pilih plant dan mesin yang mengalami masalah.</p></div></div>
         <div className="form-grid-two incident-location-grid">
-          <label className="form-field"><span className="incident-field-label"><Factory aria-hidden="true" />Plant</span>{qrPrefill ? <input value={`${qrPrefill.plant.code} - ${qrPrefill.plant.name}`} readOnly aria-readonly="true" /> : plantsLoading ? <Skeleton className="incident-select-skeleton" /> : <select value={plantId} onChange={(event) => setPlantId(event.target.value)} disabled={submitting}><option value="">Pilih plant</option>{plants.map((plant) => <option key={plant.id} value={plant.id}>{plant.code} - {plant.name}</option>)}</select>}</label>
-          <label className="form-field"><span className="incident-field-label"><Cog aria-hidden="true" />Mesin</span>{qrPrefill ? <input value={`${qrPrefill.machine.code} - ${qrPrefill.machine.name}`} readOnly aria-readonly="true" /> : machinesLoading ? <Skeleton className="incident-select-skeleton" /> : <select value={machineId} onChange={(event) => setMachineId(event.target.value)} disabled={!plantId || submitting}><option value="">{!plantId ? 'Pilih plant terlebih dahulu' : 'Pilih mesin'}</option>{machines.map((machine) => <option key={machine.id} value={machine.id}>{machine.code} - {machine.name}</option>)}</select>}</label>
+          <label className="form-field"><span className="incident-field-label"><Factory aria-hidden="true" />Plant <b className="incident-required-mark">*</b></span>{qrPrefill ? <input id="incident-plant" value={`${qrPrefill.plant.code} - ${qrPrefill.plant.name}`} readOnly aria-readonly="true" /> : plantsLoading ? <Skeleton className="incident-select-skeleton" /> : <select id="incident-plant" aria-invalid={Boolean(fieldErrors.plant)} aria-describedby={fieldErrors.plant ? 'incident-plant-error' : undefined} value={plantId} onChange={(event) => { setPlantId(event.target.value); clearFieldError('plant'); clearFieldError('machine'); }} disabled={submitting}><option value="">Pilih plant</option>{plants.map((plant) => <option key={plant.id} value={plant.id}>{plant.code} - {plant.name}</option>)}</select>}{fieldErrors.plant && <small className="incident-field-error" id="incident-plant-error" role="alert">{fieldErrors.plant}</small>}</label>
+          <label className="form-field"><span className="incident-field-label"><Cog aria-hidden="true" />Mesin <b className="incident-required-mark">*</b></span>{qrPrefill ? <input id="incident-machine" value={`${qrPrefill.machine.code} - ${qrPrefill.machine.name}`} readOnly aria-readonly="true" /> : machinesLoading ? <Skeleton className="incident-select-skeleton" /> : <select id="incident-machine" aria-invalid={Boolean(fieldErrors.machine)} aria-describedby={fieldErrors.machine ? 'incident-machine-error' : undefined} value={machineId} onChange={(event) => { setMachineId(event.target.value); clearFieldError('machine'); }} disabled={!plantId || submitting}><option value="">{!plantId ? 'Pilih plant terlebih dahulu' : 'Pilih mesin'}</option>{machines.map((machine) => <option key={machine.id} value={machine.id}>{machine.code} - {machine.name}</option>)}</select>}{fieldErrors.machine && <small className="incident-field-error" id="incident-machine-error" role="alert">{fieldErrors.machine}</small>}</label>
         </div>
         {selectedPlant && <p className="form-helper">{qrPrefill ? 'Mesin dan Plant ditentukan dari QR Code.' : `Menampilkan ${machines.length} mesin pada ${selectedPlant.name}.`}</p>}
         {plantId && !machinesLoading && !machines.length && <p className="form-inline-error">Tidak ada mesin aktif pada plant ini.</p>}
       </section>
-      <section className="form-card incident-form-section">
+      <section className="form-card incident-form-section" hidden={formStep !== 1}>
         <div className="incident-section-heading"><span className="incident-section-icon"><CircleAlert aria-hidden="true" /></span><div><p className="eyebrow">Langkah 2</p><h2>Apa masalahnya?</h2><p>Pilih jenis masalah dan jelaskan kondisi yang terjadi.</p></div></div>
-        <div className="form-field"><span className="incident-field-label"><ClipboardCheck aria-hidden="true" />Jenis masalah</span><div className="choice-grid incident-choice-grid">{problemTypes.map((type) => { const Icon = type.icon; return <button type="button" className={`choice-button incident-choice-card ${problemType === type.value ? 'choice-button--selected' : ''}`} key={type.value} onClick={() => setProblemType(type.value)} disabled={submitting}><Icon aria-hidden="true" /><span><strong>{type.label}</strong><small>{type.detail}</small></span></button>; })}</div></div>
-        <label className="form-field incident-description-field"><span className="incident-field-label">Kondisi sebelum perbaikan dan lokasi kerusakan <b aria-hidden="true">*</b></span><textarea required value={description} onChange={(event) => setDescription(event.target.value)} onBlur={() => setTouched(true)} rows={3} placeholder="Contoh: bagian motor sisi kiri bergetar dan mengeluarkan suara keras..." disabled={submitting} /><span className="form-helper">Sebutkan bagian mesin yang rusak dan kondisi yang terlihat sebelum diperbaiki.</span>{descriptionError && <span className="form-inline-error">{descriptionError}</span>}</label>
-        <div className="form-field"><span className="incident-field-label">Foto atau video kondisi mesin sebelum perbaikan <b aria-hidden="true">*</b></span><span className="form-helper">Wajib lampirkan minimal satu foto atau video agar lokasi dan kondisi kerusakan dapat diperiksa.</span><MediaAttachmentPicker files={attachmentFiles} onChange={setAttachmentFiles} disabled={submitting} /></div>
+        <div className="form-field"><span className="incident-field-label"><ClipboardCheck aria-hidden="true" />Jenis masalah <b className="incident-required-mark">*</b></span><div id="incident-problem-type" className="choice-grid incident-choice-grid" role="group" aria-label="Jenis masalah" tabIndex={-1}>{problemTypes.map((type) => { const Icon = type.icon; return <button type="button" className={`choice-button incident-choice-card ${problemType === type.value ? 'choice-button--selected' : ''}`} key={type.value} onClick={() => { setProblemType(type.value); clearFieldError('problemType'); }} disabled={submitting}><Icon aria-hidden="true" /><span><strong>{type.label}</strong><small>{type.detail}</small></span></button>; })}</div>{fieldErrors.problemType && <small className="incident-field-error" role="alert">{fieldErrors.problemType}</small>}</div>
+        <label className="form-field incident-description-field"><span className="incident-field-label">Kondisi sebelum perbaikan dan lokasi kerusakan <b className="incident-required-mark">*</b></span><textarea id="incident-description" aria-invalid={Boolean(fieldErrors.description)} aria-describedby={fieldErrors.description ? 'incident-description-error' : 'incident-description-helper'} required value={description} onChange={(event) => { setDescription(event.target.value); clearFieldError('description'); }} rows={3} placeholder="Contoh: bagian motor sisi kiri bergetar dan mengeluarkan suara keras..." disabled={submitting} /><span className="form-helper" id="incident-description-helper">Sebutkan bagian mesin yang rusak dan kondisi yang terlihat sebelum diperbaiki. Minimal 10 karakter.</span>{fieldErrors.description && <span className="incident-field-error" id="incident-description-error" role="alert">{fieldErrors.description}</span>}</label>
+        <div className="form-field"><span className="incident-field-label">Foto atau video kondisi mesin <b className="incident-required-mark">*</b></span><span className="form-helper">Lampirkan minimal satu bukti. Foto: JPG, PNG, WEBP. Video: MP4, MOV, WEBM. Maksimal 18 MB total.</span><div id="incident-attachments" tabIndex={-1}><MediaAttachmentPicker files={attachmentFiles} onChange={(files) => { setAttachmentFiles(files); if (files.length) clearFieldError('attachments'); }} disabled={submitting} /></div>{fieldErrors.attachments && <small className="incident-field-error" role="alert">{fieldErrors.attachments}</small>}</div>
       </section>
-      <section className="form-card incident-form-section">
+      <section className="form-card incident-form-section" hidden={formStep !== 2}>
         <div className="incident-section-heading"><span className="incident-section-icon"><Wrench aria-hidden="true" /></span><div><p className="eyebrow">Langkah 3</p><h2>Tindakan awal</h2><p>Apakah masalah dapat ditangani Operator?</p></div></div>
-        <div className="resolution-grid incident-resolution-grid"><button type="button" className={`resolution-button incident-resolution-card ${resolution === 'resolved' ? 'resolution-button--selected' : ''}`} onClick={() => setResolution('resolved')} disabled={submitting}><Check aria-hidden="true" /><span><strong>Dapat diselesaikan Operator</strong><small>Operator dapat menangani masalah ini.</small></span></button><button type="button" className={`resolution-button incident-resolution-card ${resolution === 'cannot-resolve' ? 'resolution-button--selected' : ''}`} onClick={() => setResolution('cannot-resolve')} disabled={submitting}><Wrench aria-hidden="true" /><span><strong>Tidak dapat diselesaikan</strong><small>Masalah akan diteruskan ke Maintenance.</small></span></button></div>
-        {resolution === 'resolved' && <div className="follow-up-fields"><label className="form-field">Tindakan yang dilakukan<textarea value={actionTaken} onChange={(event) => setActionTaken(event.target.value)} rows={3} placeholder="Jelaskan tindakan operator." disabled={submitting} /></label><label className="form-field">Hasil tindakan<textarea value={result} onChange={(event) => setResult(event.target.value)} rows={3} placeholder="Jelaskan hasil setelah tindakan." disabled={submitting} /></label></div>}
+        <div id="incident-resolution" className="resolution-grid incident-resolution-grid" role="group" aria-label="Tindakan awal" tabIndex={-1}><button type="button" className={`resolution-button incident-resolution-card ${resolution === 'resolved' ? 'resolution-button--selected' : ''}`} onClick={() => { setResolution('resolved'); clearFieldError('resolution'); }} disabled={submitting}><Check aria-hidden="true" /><span><strong>Dapat diselesaikan Operator</strong><small>Operator dapat menangani masalah ini.</small></span></button><button type="button" className={`resolution-button incident-resolution-card ${resolution === 'cannot-resolve' ? 'resolution-button--selected' : ''}`} onClick={() => { setResolution('cannot-resolve'); clearFieldError('resolution'); clearFieldError('actionTaken'); clearFieldError('result'); }} disabled={submitting}><Wrench aria-hidden="true" /><span><strong>Tidak dapat diselesaikan</strong><small>Masalah akan diteruskan ke Maintenance.</small></span></button></div>{fieldErrors.resolution && <small className="incident-field-error" role="alert">{fieldErrors.resolution}</small>}
+        {resolution === 'resolved' && <div className="follow-up-fields"><label className="form-field">Tindakan yang dilakukan <b className="incident-required-mark">*</b><textarea id="incident-action-taken" aria-invalid={Boolean(fieldErrors.actionTaken)} value={actionTaken} onChange={(event) => { setActionTaken(event.target.value); clearFieldError('actionTaken'); }} rows={3} placeholder="Contoh: membersihkan sensor dan mengencangkan kabel." disabled={submitting} />{fieldErrors.actionTaken && <small className="incident-field-error" role="alert">{fieldErrors.actionTaken}</small>}</label><label className="form-field">Hasil tindakan <b className="incident-required-mark">*</b><textarea id="incident-result" aria-invalid={Boolean(fieldErrors.result)} value={result} onChange={(event) => { setResult(event.target.value); clearFieldError('result'); }} rows={3} placeholder="Contoh: mesin kembali berjalan normal." disabled={submitting} />{fieldErrors.result && <small className="incident-field-error" role="alert">{fieldErrors.result}</small>}</label></div>}
       </section>
+      {formStep === 3 && <section className="form-card incident-form-section incident-review-section"><div className="incident-section-heading"><span className="incident-section-icon"><ClipboardCheck aria-hidden="true" /></span><div><p className="eyebrow">Langkah 4</p><h2>Periksa laporan</h2><p>Pastikan informasi sudah benar sebelum dikirim.</p></div></div><dl className="incident-review-list"><div><dt>Plant dan mesin</dt><dd>{selectedPlant?.name ?? '—'} · {selectedMachine?.name ?? '—'} <button type="button" onClick={() => { setFormStep(0); reportBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}>Ubah</button></dd></div><div><dt>Jenis masalah</dt><dd>{problemTypes.find((type) => type.value === problemType)?.label ?? '—'} <button type="button" onClick={() => { setFormStep(1); reportBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}>Ubah</button></dd></div><div><dt>Kondisi mesin</dt><dd>{description || '—'}</dd></div><div><dt>Lampiran</dt><dd>{attachmentFiles.length ? `${attachmentFiles.length} file: ${attachmentFiles.map((file) => file.name).join(', ')}` : 'Belum ada lampiran'}</dd></div><div><dt>Tindakan awal</dt><dd>{resolution === 'resolved' ? 'Dapat diselesaikan Operator' : resolution === 'cannot-resolve' ? 'Tidak dapat diselesaikan' : '—'} <button type="button" onClick={() => { setFormStep(2); reportBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }}>Ubah</button></dd></div>{resolution === 'resolved' && <><div><dt>Tindakan yang dilakukan</dt><dd>{actionTaken || '—'}</dd></div><div><dt>Hasil tindakan</dt><dd>{result || '—'}</dd></div></>}</dl></section>}
     </div>
     <aside className="report-aside"><p className="eyebrow">Ringkasan</p><h2>{selectedPlant?.name ?? 'Pilih plant'}</h2><p>{selectedMachine?.name ?? 'Pilih mesin untuk melanjutkan laporan.'}</p></aside>
-  </div></div><div className="incident-form-modal__footer"><button className="secondary-action" type="button" onClick={() => setReportOpen(false)} disabled={submitting}>Batal</button><button className="primary-button" type="button" onClick={() => void submitReport()} disabled={submitting || machinesLoading}><ClipboardCheck aria-hidden="true" />{submitting ? attachmentFiles.length ? 'Mengunggah...' : 'Menyimpan...' : 'Simpan Laporan'}</button></div></section></div>}
+  </div></div><div className="incident-form-modal__footer"><button className="secondary-action" type="button" onClick={() => setReportOpen(false)} disabled={submitting}>Batal</button>{formStep > 0 && <button className="secondary-action" type="button" onClick={() => { setFormStep((current) => Math.max(0, current - 1)); setFieldErrors({}); setError(''); reportBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); }} disabled={submitting}>Kembali</button>}{formStep < reportSteps.length - 1 ? <button className="primary-button" type="button" onClick={continueReport} disabled={submitting || (formStep === 0 && machinesLoading)}>Lanjut</button> : <button className="primary-button" type="button" onClick={() => void submitReport()} disabled={submitting}><ClipboardCheck aria-hidden="true" />{submitting ? attachmentFiles.length ? 'Mengunggah...' : 'Mengirim...' : 'Kirim Laporan'}</button>}</div></section></div>}
   <section className="incident-history">
     <div className="incident-history-heading">
       <div><p className="eyebrow">Catatan tersimpan</p><h2>Riwayat Insiden</h2><p>Daftar laporan masalah.</p></div>
-      <div className="incident-history-actions"><button className="primary-button incident-open-button" type="button" onClick={() => setReportOpen(true)}><Plus aria-hidden="true" /><span className="incident-open-button__desktop-label">Buat Laporan</span><span className="incident-open-button__mobile-label">Buat Laporan Insiden</span></button><button className="secondary-action incident-refresh-button" type="button" onClick={() => void refreshHistory()} disabled={historyLoading} aria-label="Muat ulang" title="Muat ulang"><RefreshCw aria-hidden="true" /><span className="incident-refresh-button__desktop-label">Muat ulang</span></button></div>
+      <div className="incident-history-actions"><button className="primary-button incident-open-button" type="button" onClick={openReportForm}><Plus aria-hidden="true" /><span className="incident-open-button__desktop-label">Buat Laporan</span><span className="incident-open-button__mobile-label">Buat Laporan Insiden</span></button><button className="secondary-action incident-refresh-button" type="button" onClick={() => void refreshHistory()} disabled={historyLoading} aria-label="Muat ulang" title="Muat ulang"><RefreshCw aria-hidden="true" /><span className="incident-refresh-button__desktop-label">Muat ulang</span></button></div>
     </div>
     <div className="incident-history-filters">
       <label className="incident-filter-search"><Search aria-hidden="true" /><input aria-label="Cari masalah atau mesin" value={historySearchInput} onChange={(event) => setHistorySearchInput(event.target.value)} placeholder="Cari masalah atau mesin..." /></label>

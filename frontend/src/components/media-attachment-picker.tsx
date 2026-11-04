@@ -52,7 +52,7 @@ export function MediaAttachmentPicker({ files, onChange, disabled = false, maxAt
     </div>
     <input ref={cameraRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden onChange={(event) => void addFiles(event.target.files)} />
     <input ref={galleryRef} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,.mov" multiple hidden onChange={(event) => void addFiles(event.target.files)} />
-    <p className="media-attachment-hint">Maksimal {maxAttachments} file, total 18 MB. Foto akan disiapkan otomatis.</p>
+    <p className="media-attachment-hint">Format foto JPG, PNG, WEBP; video MP4, MOV, WEBM. Maksimal {maxAttachments} file dan total 18 MB. Foto akan disiapkan otomatis.</p>
     {working && <p className="media-attachment-status" role="status">{status || 'Menyiapkan file...'}</p>}
     {!working && status && <p className="media-attachment-status" role="status">{status}</p>}
     {error && <p className="form-inline-error" role="alert">{error}</p>}

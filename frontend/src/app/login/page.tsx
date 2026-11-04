@@ -8,7 +8,7 @@ import { ApiConfigurationError, ApiError } from '@/lib/api';
 export default function LoginPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -16,7 +16,7 @@ export default function LoginPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setBusy(true);
     try {
-      await login(email, password);
+      await login(identifier, password);
       const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
       const requestedPath = params.get('next');
       const destination = requestedPath?.startsWith(basePath) ? requestedPath.slice(basePath.length) || '/' : requestedPath || '/dashboard';
@@ -37,8 +37,8 @@ export default function LoginPage() {
         <p className="login-screen__subtitle mt-1 text-sm text-slate-500">Akses ruang kerja pemeliharaan Anda.</p>
         {error && <div className="login-screen__error mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700" role="alert">{error}</div>}
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-          <label className="login-screen__field block text-sm font-medium text-slate-900">Email
-            <input className="login-screen__input mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-transparent px-3 outline-none focus:border-emerald-500" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="anda@perusahaan.com" required />
+          <label className="login-screen__field block text-sm font-medium text-slate-900">Username atau email
+            <input className="login-screen__input mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-transparent px-3 outline-none focus:border-emerald-500" type="text" value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" placeholder="username atau anda@perusahaan.com" required />
           </label>
           <label className="login-screen__field block text-sm font-medium text-slate-900">Kata sandi
             <input className="login-screen__input mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-transparent px-3 outline-none focus:border-emerald-500" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="••••••••" required />

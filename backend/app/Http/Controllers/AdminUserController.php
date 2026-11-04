@@ -43,9 +43,13 @@ class AdminUserController extends Controller
     public function store(Request $request): JsonResponse
     {
         $this->authorizeAdmin($request);
+        if ($request->filled('username')) {
+            $request->merge(['username' => mb_strtolower(trim((string) $request->input('username')))]);
+        }
         $validated = $request->validate($this->rules());
         $user = User::create([
             'name' => $validated['name'],
+            'username' => isset($validated['username']) ? mb_strtolower($validated['username']) : null,
             'email' => $validated['email'],
             'phone' => $validated['phone'] ?? null,
             'nik' => $validated['nik'] ?? null,
@@ -60,6 +64,9 @@ class AdminUserController extends Controller
     public function update(Request $request, User $user): JsonResponse
     {
         $this->authorizeAdmin($request);
+        if ($request->filled('username')) {
+            $request->merge(['username' => mb_strtolower(trim((string) $request->input('username')))]);
+        }
         $validated = $request->validate($this->rules($user));
 
         DB::transaction(function () use ($request, $user, $validated): void {
@@ -74,7 +81,11 @@ class AdminUserController extends Controller
                 abort_if($otherActiveAdmins === 0, 422, 'Admin aktif terakhir tidak dapat dinonaktifkan atau diturunkan perannya.');
             }
 
-            $lockedUser->fill(array_intersect_key($validated, array_flip(['name', 'email', 'phone', 'nik', 'role', 'is_active'])));
+            $profile = array_intersect_key($validated, array_flip(['name', 'email', 'phone', 'nik', 'role', 'is_active']));
+            if (array_key_exists('username', $validated)) {
+                $profile['username'] = $validated['username'] === null ? null : mb_strtolower($validated['username']);
+            }
+            $lockedUser->fill($profile);
             if (! empty($validated['password'])) {
                 $lockedUser->password = Hash::make($validated['password']);
             }
@@ -97,6 +108,7 @@ class AdminUserController extends Controller
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'username' => [$user ? 'nullable' : 'required', 'string', 'min:3', 'max:50', 'regex:/^[a-zA-Z0-9._-]+$/', Rule::unique('users', 'username')->ignore($user?->id)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
             'phone' => ['nullable', 'string', 'max:50'],
             'nik' => ['nullable', 'string', 'max:100'],
@@ -111,6 +123,7 @@ class AdminUserController extends Controller
         return [
             'id' => $user->id,
             'name' => $user->name,
+            'username' => $user->username,
             'email' => $user->email,
             'phone' => $user->phone,
             'nik' => $user->nik,

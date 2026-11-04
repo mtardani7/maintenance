@@ -17,12 +17,16 @@ class DatabaseSeeder extends Seeder
     {
         $demoPassword = 'Pilot2026!';
         $demoUsers = [
-            ['name' => 'Demo Operator', 'email' => 'operator.demo@example.com', 'role' => 'operator'],
-            ['name' => 'Demo Technician', 'email' => 'technician.demo@example.com', 'role' => 'technician'],
-            ['name' => 'Demo Supervisor', 'email' => 'supervisor.demo@example.com', 'role' => 'supervisor'],
-            ['name' => 'Demo QA', 'email' => 'qa.demo@example.com', 'role' => 'qa'],
-            ['name' => 'Demo Admin', 'email' => 'admin.demo@example.com', 'role' => 'admin'],
+            ['name' => 'Demo Operator', 'username' => 'operator', 'email' => 'operator.demo@example.com', 'role' => 'operator'],
+            ['name' => 'Demo Technician', 'username' => 'technician', 'email' => 'technician.demo@example.com', 'role' => 'technician'],
+            ['name' => 'Demo Supervisor', 'username' => 'supervisor', 'email' => 'supervisor.demo@example.com', 'role' => 'supervisor'],
+            ['name' => 'Demo QA', 'username' => 'qa', 'email' => 'qa.demo@example.com', 'role' => 'qa'],
+            ['name' => 'Demo Admin', 'username' => 'admin', 'email' => 'admin.demo@example.com', 'role' => 'admin'],
         ];
+
+        if (app()->environment(['local', 'testing'])) {
+            $demoUsers[] = ['name' => 'Developer', 'username' => 'developer', 'email' => 'developer@rapidplast.co.id', 'role' => 'admin'];
+        }
 
         foreach ($demoUsers as $demoUser) {
             User::updateOrCreate(

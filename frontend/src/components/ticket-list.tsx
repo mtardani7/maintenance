@@ -41,7 +41,10 @@ export function TicketList({ header }: { header: ReactNode }) {
     return () => { active = false; };
   }, [filters, retryKey]);
   useEffect(() => {
-    const timer = window.setTimeout(() => setFilters((current) => ({ ...current, search: search.trim() || undefined, page: 1 })), 350);
+    const timer = window.setTimeout(() => {
+      const nextSearch = search.trim() || undefined;
+      setFilters((current) => current.search === nextSearch ? current : { ...current, search: nextSearch, page: 1 });
+    }, 350);
     return () => window.clearTimeout(timer);
   }, [search]);
 

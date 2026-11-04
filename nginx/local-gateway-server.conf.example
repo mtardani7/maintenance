@@ -1,0 +1,31 @@
+# Local office gateway only; public DNS must continue to point to Jagoan Hosting.
+server {
+    listen 80;
+    server_name apps.rapidplast.co.id;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name apps.rapidplast.co.id;
+    client_max_body_size 50m;
+
+    ssl_certificate /etc/nginx/ssl/apps.rapidplast.co.id.crt;
+    ssl_certificate_key /etc/nginx/ssl/apps.rapidplast.co.id.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    location = / {
+        return 302 /mira;
+    }
+
+    location = /manifest.webmanifest {
+        return 302 /mira/manifest.webmanifest;
+    }
+
+    include /etc/nginx/snippets/maintenance-location.conf;
+}

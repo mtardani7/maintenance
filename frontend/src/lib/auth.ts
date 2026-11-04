@@ -73,14 +73,14 @@ async function requestCurrentUser(): Promise<AuthResult> {
   }
 }
 
-export async function login(email: string, password: string): Promise<User> {
+export async function login(identifier: string, password: string): Promise<User> {
   if (!loginPath) {
     throw new ApiConfigurationError('Laravel login endpoint is not configured yet.');
   }
 
   const result = await apiRequest<{ token: string; user: User }>(loginPath, {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ identifier, password }),
   });
   if (typeof window !== 'undefined') window.localStorage.setItem('maintenance_token', result.token);
   setCurrentUser(result.user);

@@ -2,32 +2,41 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
     public function login(Request $request): JsonResponse
     {
         $credentials = $request->validate([
-            'email' => ['required', 'email'],
+            'identifier' => ['nullable', 'string', 'required_without:email', 'max:255'],
+            'email' => ['nullable', 'string', 'required_without:identifier', 'max:255'],
             'password' => ['required', 'string'],
         ]);
 
-        if (! Auth::attempt($credentials)) {
-            return response()->json(['message' => 'Invalid email or password.'], 422);
+        $identifier = mb_strtolower(trim((string) ($credentials['identifier'] ?? $credentials['email'] ?? '')));
+        $userQuery = User::query();
+        if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+            $userQuery->whereRaw('LOWER(email) = ?', [$identifier]);
+        } else {
+            $userQuery->whereRaw('LOWER(username) = ?', [$identifier]);
         }
 
-        if (! $request->user()->is_active) {
-            Auth::logout();
+        $user = $userQuery->first();
+        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+            return response()->json(['message' => 'Username/email atau kata sandi salah.'], 422);
+        }
 
-            return response()->json(['message' => 'Invalid email or password.'], 422);
+        if (! $user->is_active) {
+            return response()->json(['message' => 'Username/email atau kata sandi salah.'], 422);
         }
 
         return response()->json([
-            'token' => $request->user()->createToken($request->input('device_name', 'maintenance-web'))->plainTextToken,
-            'user' => $request->user(),
+            'token' => $user->createToken($request->input('device_name', 'maintenance-web'))->plainTextToken,
+            'user' => $user,
         ]);
     }
 

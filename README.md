@@ -426,6 +426,8 @@ Variabel Laravel generik lain mengikuti `backend/config/database.php`, `queue.ph
 
 Compose merujuk `backend/.env`, volume `maintenance-backend-storage`, dan external networks `qa-system-network` serta `rapidplast-network`. Network dan database PostgreSQL harus tersedia dari infrastruktur; Compose tidak membuat service database. `nginx/maintenance-location.conf` meneruskan `/mira/` ke Next.js dan `/mira/api/` ke Laravel; `nginx/backend.conf` meneruskan PHP ke PHP-FPM.
 
+Domain memakai split DNS: record publik `apps.rapidplast.co.id` tetap mengarah ke Jagoan Hosting (`101.50.1.83`) untuk Laravel, sedangkan DNS internal kantor mengarahkannya ke `192.168.180.22`. Gateway lokal melayani HTTPS dan meneruskan `/mira` ke Next.js serta `/mira/api` ke Laravel lokal; sertifikat untuk domain tersebut harus tersedia pada gateway agar browser dapat menginstal PWA. `nginx/local-gateway-server.conf.example` adalah contoh vhost gateway lokal, bukan konfigurasi untuk dipasang pada host publik. Jika gateway sudah memiliki server block untuk nama domain ini, gabungkan rutenya alih-alih memasang vhost duplikat. DNS publik dan internal dikelola di luar repository/Compose.
+
 Port host dapat diatur melalui `MAINTENANCE_FRONTEND_PORT` dan `MAINTENANCE_BACKEND_PORT`; mapping pada Compose terikat ke localhost. Jangan membuka port ke jaringan publik tanpa perimeter yang sesuai.
 
 Contoh inspeksi setelah prasyarat infrastruktur disiapkan:

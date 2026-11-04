@@ -306,8 +306,7 @@ export function TicketDetailView({ ticketId }: { ticketId: string }) {
           <p className="ticket-detail-reporter">Pelapor: {ticket.reporter?.name ?? 'Operator'}</p>
         </div>
         <div className="ticket-detail-status">
-          <b className={`ticket-status ticket-status--${ticket.status.toLowerCase()}`}>{ticketStatusLabel(ticket.status)}</b>
-          <span>{ticket.status === 'OPEN' ? 'Sedang dikerjakan' : 'Pekerjaan sudah selesai'}</span>
+          {ticket.status === 'CLOSED' ? <div className="ticket-completion-stamp" role="status" aria-label="Pekerjaan sudah selesai"><span className="ticket-completion-stamp__icon"><ClipboardCheck aria-hidden="true" /></span><span className="ticket-completion-stamp__text"><small>Tiket pemeliharaan</small><strong>Selesai</strong></span></div> : <><b className={`ticket-status ticket-status--${ticket.status.toLowerCase()}`}>{ticketStatusLabel(ticket.status)}</b><span>Sedang dikerjakan</span></>}
         </div>
       </div>
 

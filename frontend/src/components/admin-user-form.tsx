@@ -12,7 +12,7 @@ const accountRoles = roles;
 export function AdminUserForm() {
   const user = useAuthUser();
   const role = user?.role ?? null;
-  const [form, setForm] = useState({ name: '', email: '', role: 'operator' as Role, password: '', password_confirmation: '' });
+  const [form, setForm] = useState({ name: '', username: '', email: '', role: 'operator' as Role, password: '', password_confirmation: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -34,7 +34,7 @@ export function AdminUserForm() {
     setSuccess('');
     try {
       await createUser(form);
-      setForm({ name: '', email: '', role: 'operator', password: '', password_confirmation: '' });
+      setForm({ name: '', username: '', email: '', role: 'operator', password: '', password_confirmation: '' });
       setSuccess('Akun berhasil dibuat.');
     } catch (reason) {
       setError(adminUserApiMessage(reason));
@@ -51,6 +51,7 @@ export function AdminUserForm() {
     <p className="account-panel__intro">Buat akun untuk salah satu dari lima peran sistem.</p>
     <form className="account-form" onSubmit={submit}>
       <label className="form-field">Nama lengkap<input value={form.name} onChange={(event) => update('name', event.target.value)} autoComplete="name" required /></label>
+      <label className="form-field">Username<input value={form.username} onChange={(event) => update('username', event.target.value)} autoComplete="username" minLength={3} maxLength={50} pattern="[A-Za-z0-9._-]+" required /></label>
       <label className="form-field">Email<input type="email" value={form.email} onChange={(event) => update('email', event.target.value)} autoComplete="email" required /></label>
       <label className="form-field">Peran<select value={form.role} onChange={(event) => update('role', event.target.value)}>{accountRoles.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
       <label className="form-field">Kata sandi<input type="password" value={form.password} onChange={(event) => update('password', event.target.value)} autoComplete="new-password" minLength={8} required /></label>
