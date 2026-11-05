@@ -4,6 +4,7 @@ export type User = {
   id: number | string;
   name: string;
   email: string;
+  plant_id?: number | null;
   role?: Role;
   avatarUrl?: string;
 };

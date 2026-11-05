@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { createUser, adminUserApiMessage } from '@/lib/admin-user-api';
+import { getPlantOptions, type PlantOption } from '@/lib/maintenance-api';
 import { roles } from '@/lib/roles';
 import type { Role } from '@/lib/types';
 import { ErrorState, FormSkeleton } from './ui';
@@ -12,10 +13,19 @@ const accountRoles = roles;
 export function AdminUserForm() {
   const user = useAuthUser();
   const role = user?.role ?? null;
-  const [form, setForm] = useState({ name: '', username: '', email: '', role: 'operator' as Role, password: '', password_confirmation: '' });
+  const [form, setForm] = useState({ name: '', username: '', email: '', plant_id: '', role: 'operator' as Role, password: '', password_confirmation: '' });
+  const [plants, setPlants] = useState<PlantOption[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    getPlantOptions().then((options) => {
+      setPlants(options);
+      const defaultPlant = options.find((plant) => plant.code.trim().toUpperCase() === 'RX03');
+      if (defaultPlant) setForm((current) => current.plant_id ? current : { ...current, plant_id: String(defaultPlant.id) });
+    }).catch(() => setPlants([]));
+  }, []);
 
   function update(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -33,8 +43,8 @@ export function AdminUserForm() {
     setError('');
     setSuccess('');
     try {
-      await createUser(form);
-      setForm({ name: '', username: '', email: '', role: 'operator', password: '', password_confirmation: '' });
+      await createUser({ ...form, plant_id: form.role === 'admin' ? null : Number(form.plant_id) || null });
+      setForm({ name: '', username: '', email: '', plant_id: '', role: 'operator', password: '', password_confirmation: '' });
       setSuccess('Akun berhasil dibuat.');
     } catch (reason) {
       setError(adminUserApiMessage(reason));
@@ -53,6 +63,7 @@ export function AdminUserForm() {
       <label className="form-field">Nama lengkap<input value={form.name} onChange={(event) => update('name', event.target.value)} autoComplete="name" required /></label>
       <label className="form-field">Username<input value={form.username} onChange={(event) => update('username', event.target.value)} autoComplete="username" minLength={3} maxLength={50} pattern="[A-Za-z0-9._-]+" required /></label>
       <label className="form-field">Email<input type="email" value={form.email} onChange={(event) => update('email', event.target.value)} autoComplete="email" required /></label>
+      <label className="form-field">Plant<select value={form.role === 'admin' ? '' : form.plant_id} onChange={(event) => update('plant_id', event.target.value)} required={form.role !== 'admin'} disabled={form.role === 'admin'}><option value="">{form.role === 'admin' ? 'Semua Plant (Admin)' : 'Pilih Plant'}</option>{plants.map((plant) => <option key={plant.id} value={plant.id}>{plant.code} - {plant.name}</option>)}</select></label>
       <label className="form-field">Peran<select value={form.role} onChange={(event) => update('role', event.target.value)}>{accountRoles.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
       <label className="form-field">Kata sandi<input type="password" value={form.password} onChange={(event) => update('password', event.target.value)} autoComplete="new-password" minLength={8} required /></label>
       <label className="form-field">Ulangi kata sandi<input type="password" value={form.password_confirmation} onChange={(event) => update('password_confirmation', event.target.value)} autoComplete="new-password" minLength={8} required /></label>

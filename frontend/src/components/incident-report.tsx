@@ -109,10 +109,10 @@ export function IncidentReport() {
   }, []);
 
   useEffect(() => {
-    if (!reportOpen || qrPrefill || authUser?.role !== 'operator' || plantId) return;
-    const defaultPlant = plants.find((plant) => plant.code.trim().toUpperCase() === 'RX03');
+    if (!reportOpen || qrPrefill || !authUser || authUser.role === 'admin' || plantId) return;
+    const defaultPlant = plants.find((plant) => String(plant.id) === String(authUser.plant_id)) ?? plants[0];
     if (defaultPlant) setPlantId(String(defaultPlant.id));
-  }, [authUser?.role, plantId, plants, qrPrefill, reportOpen]);
+  }, [authUser?.plant_id, authUser?.role, plantId, plants, qrPrefill, reportOpen]);
 
   useEffect(() => { void refreshHistory(); }, []);
 
@@ -220,8 +220,8 @@ export function IncidentReport() {
   }
 
   function openReportForm() {
-    const defaultPlant = authUser?.role === 'operator'
-      ? plants.find((plant) => plant.code.trim().toUpperCase() === 'RX03')
+    const defaultPlant = authUser && authUser.role !== 'admin'
+      ? plants.find((plant) => String(plant.id) === String(authUser.plant_id)) ?? plants[0]
       : undefined;
     setReportOpen(true);
     setQrPrefill(null);
@@ -309,7 +309,7 @@ export function IncidentReport() {
 
   return <>
   {successOpen && <div className="incident-modal-backdrop incident-success-backdrop" role="presentation"><section className="incident-success-modal" role="alertdialog" aria-modal="true" aria-labelledby="incident-success-title"><CircleCheck className="incident-success-icon" aria-hidden="true" /><h2 id="incident-success-title">Laporan berhasil dikirim</h2>{successTicketNumber ? <><p>Laporan sudah tersimpan dan diteruskan ke tim Maintenance. Simpan nomor tiket ini untuk melihat perkembangannya.</p><div className="ticket-success-number"><span>Nomor Tiket Maintenance</span><strong>{successTicketNumber}</strong></div></> : <p>Laporan sudah tercatat sebagai selesai. Tidak ada tiket Maintenance yang perlu ditindaklanjuti.</p>}<button className="primary-button" type="button" onClick={acknowledgeSuccess}>Kembali ke riwayat</button></section></div>}
-  {!plantsLoading && plants.length === 0 && !error && <EmptyState title="Tidak ada Plant tersedia" description="Plant belum tersedia. Riwayat insiden tetap dapat ditinjau." />}
+  {!plantsLoading && plants.length === 0 && !error && <EmptyState title="Plant belum tersedia untuk akun ini" description="Minta Admin menetapkan akses Plant di Manajemen Pengguna. Riwayat insiden tetap dapat ditinjau." />}
   {reportOpen && <div className="incident-modal-backdrop incident-form-backdrop" role="dialog" aria-modal="true" aria-labelledby="incident-form-title"><section className="incident-form-modal"><div className="incident-form-modal__header"><div><p className="eyebrow">Laporkan masalah pada mesin.</p><h2 id="incident-form-title">Buat Laporan Insiden</h2></div><button className="icon-button" type="button" onClick={() => setReportOpen(false)} aria-label="Tutup form insiden"><X aria-hidden="true" /></button></div><div className="incident-form-modal__body" ref={reportBodyRef}><div className="report-layout">
     <div className="report-main">
       {validationError && <p className="incident-validation-summary" role="alert" aria-live="assertive">{validationError}</p>}

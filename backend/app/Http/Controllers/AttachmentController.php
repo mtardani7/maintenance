@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use App\Support\PlantAccess;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttachmentController extends Controller
@@ -20,6 +21,7 @@ class AttachmentController extends Controller
     public function storeForIncident(Request $request, Incident $incident): JsonResponse
     {
         abort_unless($request->user()?->role === 'admin' || (string) $incident->reported_by === (string) $request->user()?->id, 403);
+        PlantAccess::enforce($request->user(), $incident->plant_id);
 
         return $this->store($request, ['incident_id' => $incident->id]);
     }
@@ -27,6 +29,7 @@ class AttachmentController extends Controller
     public function storeForTicket(Request $request, MaintenanceTicket $ticket): JsonResponse
     {
         abort_unless($request->user()?->role === 'technician' || $request->user()?->role === 'admin', 403);
+        PlantAccess::enforce($request->user(), $ticket->plant_id);
         abort_if($ticket->status === 'CLOSED', 422, 'Closed tickets cannot receive attachments.');
 
         return $this->store($request, ['maintenance_ticket_id' => $ticket->id]);
@@ -72,6 +75,8 @@ class AttachmentController extends Controller
             || ($attachment->maintenanceTicket && in_array($user?->role, ['technician', 'admin'], true))
             || ($attachment->maintenanceTicket && (string) $attachment->maintenanceTicket->reported_by === (string) $user?->id);
         abort_unless($allowed, 403);
+        if ($attachment->incident) PlantAccess::enforce($user, $attachment->incident->plant_id);
+        if ($attachment->maintenanceTicket) PlantAccess::enforce($user, $attachment->maintenanceTicket->plant_id);
 
         return Storage::disk('local')->download($attachment->file_path, $attachment->file_name, ['Content-Type' => $attachment->mime_type]);
     }

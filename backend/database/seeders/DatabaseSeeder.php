@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Models\Plant;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -28,10 +29,12 @@ class DatabaseSeeder extends Seeder
             $demoUsers[] = ['name' => 'Developer', 'username' => 'developer', 'email' => 'developer@rapidplast.co.id', 'role' => 'admin'];
         }
 
+        $defaultPlantId = Plant::query()->where('code', 'RX03')->value('id');
+
         foreach ($demoUsers as $demoUser) {
             User::updateOrCreate(
                 ['email' => $demoUser['email']],
-                [...$demoUser, 'password' => $demoPassword],
+                [...$demoUser, 'plant_id' => $demoUser['role'] === 'admin' ? null : $defaultPlantId, 'password' => $demoPassword],
             );
         }
     }

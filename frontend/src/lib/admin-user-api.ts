@@ -10,6 +10,7 @@ export type ManagedUser = {
   name: string;
   username: string | null;
   email: string;
+  plant_id: number | null;
   phone: string | null;
   nik: string | null;
   role: Role;
@@ -19,7 +20,7 @@ export type ManagedUser = {
 export type UserPage = { data: ManagedUser[]; current_page: number; last_page: number; total: number };
 export type UserInput = Omit<ManagedUser, 'id'> & { password?: string; password_confirmation?: string };
 export type UserFilters = { search: string; role: string; status: string; page: number; per_page: number };
-export type CreateUserInput = { name: string; username: string; email: string; role: Role; password: string; password_confirmation: string };
+export type CreateUserInput = { name: string; username: string; email: string; plant_id: number | null; role: Role; password: string; password_confirmation: string };
 
 export function getManagedUsers(filters: UserFilters) {
   const query = new URLSearchParams({ search: filters.search, role: filters.role, status: filters.status, page: String(filters.page), per_page: String(filters.per_page) });

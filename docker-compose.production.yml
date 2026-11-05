@@ -22,7 +22,7 @@ services:
 
   maintenance-backend-migrations:
     image: maintenance-backend:latest
-    restart: unless-stopped
+    restart: "no"
     command: ["php", "artisan", "migrate", "--force"]
     env_file: ./backend/.env
     environment:

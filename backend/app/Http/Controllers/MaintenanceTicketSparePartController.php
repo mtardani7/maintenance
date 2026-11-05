@@ -6,6 +6,7 @@ use App\Models\MaintenanceTicket;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Support\PlantAccess;
 
 class MaintenanceTicketSparePartController extends Controller
 {
@@ -17,6 +18,7 @@ class MaintenanceTicketSparePartController extends Controller
     public function store(Request $request, MaintenanceTicket $ticket): JsonResponse
     {
         $this->ensureMaintenance($request);
+        PlantAccess::enforce($request->user(), $ticket->plant_id);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -38,6 +40,7 @@ class MaintenanceTicketSparePartController extends Controller
     public function destroy(Request $request, MaintenanceTicket $ticket, int $sparePart): JsonResponse
     {
         $this->ensureMaintenance($request);
+        PlantAccess::enforce($request->user(), $ticket->plant_id);
 
         DB::transaction(function () use ($ticket, $sparePart): void {
             $lockedTicket = MaintenanceTicket::query()->lockForUpdate()->findOrFail($ticket->getKey());

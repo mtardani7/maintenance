@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use App\Models\Plant;
 
 class QaMachineController extends Controller
 {
@@ -54,9 +55,28 @@ class QaMachineController extends Controller
         }
     }
 
+    private function assignedQaPlant(Request $request): ?array
+    {
+        $user = $request->user();
+        if (! $user || $user->hasAllPlantAccess()) return null;
+        abort_if($user->plant_id === null, 403, 'Plant belum ditetapkan untuk akun ini.');
+        $localPlant = Plant::query()->findOrFail($user->plant_id);
+        $payload = $this->get('/plants', ['per_page' => 100, 'is_active' => 'true'])->json();
+        $plants = data_get($payload, 'data', []);
+        $plant = collect(is_array($plants) ? $plants : [])->first(fn (array $item): bool => strcasecmp((string) ($item['code'] ?? ''), $localPlant->code) === 0);
+        abort_unless($plant, 403, 'Plant akun ini tidak tersedia di QA System.');
+        return $plant;
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = $request->query();
+        $assignedPlant = $this->assignedQaPlant($request);
+        if ($assignedPlant) {
+            $requestedPlant = $query['plant_id'] ?? $query['plant'] ?? null;
+            abort_if($requestedPlant !== null && (string) $requestedPlant !== (string) $assignedPlant['id'], 403, 'Akun ini tidak memiliki akses ke Plant tersebut.');
+            $query['plant_id'] = $assignedPlant['id'];
+        }
         $query['per_page'] = min((int) ($query['per_page'] ?? 20), 100);
         if (! empty($query['plant'])) $query['plant_id'] = $query['plant'];
         if (isset($query['status']) && $query['status'] !== '') $query['is_active'] = $query['status'] === 'running' ? 'true' : 'false';
@@ -90,10 +110,14 @@ class QaMachineController extends Controller
         ]);
     }
 
-    public function plants(): JsonResponse
+    public function plants(Request $request): JsonResponse
     {
         $payload = $this->get('/plants', ['per_page' => 100, 'is_active' => 'true'])->json();
         $items = data_get($payload, 'data', []);
+        $assignedPlant = $this->assignedQaPlant($request);
+        if ($assignedPlant) {
+            $items = [$assignedPlant];
+        }
 
         return response()->json(['data' => array_map(static fn (array $plant): array => [
             'id' => $plant['id'],
@@ -105,6 +129,11 @@ class QaMachineController extends Controller
     public function dashboard(Request $request): JsonResponse
     {
         $filters = $request->only(['date', 'period', 'plant_id', 'line_id', 'machine_id', 'shift_id', 'product_id', 'checker_id']);
+        $assignedPlant = $this->assignedQaPlant($request);
+        if ($assignedPlant) {
+            abort_if(isset($filters['plant_id']) && (string) $filters['plant_id'] !== (string) $assignedPlant['id'], 403, 'Akun ini tidak memiliki akses ke Plant tersebut.');
+            $filters['plant_id'] = $assignedPlant['id'];
+        }
         $payload = $this->get('/dashboard', $filters)->json();
         return response()->json(data_get($payload, 'data', $payload));
     }

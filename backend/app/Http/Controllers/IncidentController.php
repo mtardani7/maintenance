@@ -8,6 +8,7 @@ use App\Models\Incident;
 use App\Models\Machine;
 use App\Services\MachineQrPayload;
 use App\Services\MaintenanceTicketCreator;
+use App\Support\PlantAccess;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,17 +23,21 @@ class IncidentController extends Controller
             403,
             'You are not authorized to access this incident.',
         );
+        PlantAccess::enforce($user, $incident->plant_id);
     }
 
     public function index(Request $request)
     {
-        $incidents = Incident::query()
-            ->with(['maintenanceTicket', 'attachments'])
-            ->when($request->user()?->role !== 'admin', fn ($query) => $query->where('reported_by', $request->user()->id))
-            ->when($request->filled('plant_id'), fn ($query) => $query->where('plant_id', $request->integer('plant_id')))
-            ->when($request->filled('machine_id'), fn ($query) => $query->where('machine_id', $request->integer('machine_id')))
-            ->latest()
-            ->paginate(min($request->integer('per_page', 20), 100));
+        $query = Incident::query()->with(['maintenanceTicket', 'attachments']);
+        if ($request->user()) {
+            PlantAccess::scope($query, $request->user(), 'incidents.plant_id');
+            if ($request->user()->role !== 'admin') {
+                $query->where('reported_by', $request->user()->id);
+            }
+        }
+        if ($request->filled('plant_id')) $query->where('plant_id', $request->integer('plant_id'));
+        if ($request->filled('machine_id')) $query->where('machine_id', $request->integer('machine_id'));
+        $incidents = $query->latest()->paginate(min($request->integer('per_page', 20), 100));
 
         return IncidentResource::collection($incidents);
     }
@@ -53,6 +58,7 @@ class IncidentController extends Controller
         ]);
         $files = $request->file('files', []);
         abort_if(collect($files)->sum(fn ($file): int => $file->getSize()) > 18 * 1024 * 1024, 422, 'Total attachment size must not exceed 18 MB.');
+        PlantAccess::enforce($request->user(), $data['plant_id']);
         if (! empty($data['qr_payload'])) {
             $identifier = MachineQrPayload::parse($data['qr_payload']);
             abort_unless($identifier, 422, 'QR Mesin tidak valid.');
@@ -61,8 +67,13 @@ class IncidentController extends Controller
                 ->first();
             abort_unless($machine, 404, 'Mesin tidak ditemukan.');
             abort_if(! $machine->is_active, 422, 'Mesin sedang tidak aktif dan tidak dapat digunakan untuk laporan.');
+            PlantAccess::enforce($request->user(), $machine->plant_id);
             $data['plant_id'] = $machine->plant_id;
             $data['machine_id'] = $machine->id;
+        } else {
+            $machine = Machine::query()->findOrFail($data['machine_id']);
+            PlantAccess::enforce($request->user(), $machine->plant_id);
+            abort_unless((int) $machine->plant_id === (int) $data['plant_id'], 422, 'Mesin tidak termasuk dalam Plant yang dipilih.');
         }
         unset($data['qr_payload']);
         $data['reported_by'] = $request->user()->id;
@@ -122,6 +133,13 @@ class IncidentController extends Controller
             'result' => ['sometimes', 'string', 'min:5'],
             'status' => ['sometimes', 'in:OPEN,RESOLVED'],
         ]);
+        $targetPlantId = $data['plant_id'] ?? $incident->plant_id;
+        PlantAccess::enforce($request->user(), $targetPlantId);
+        if (isset($data['machine_id']) || isset($data['plant_id'])) {
+            $machine = Machine::query()->findOrFail($data['machine_id'] ?? $incident->machine_id);
+            PlantAccess::enforce($request->user(), $machine->plant_id);
+            abort_unless((int) $machine->plant_id === (int) $targetPlantId, 422, 'Mesin tidak termasuk dalam Plant yang dipilih.');
+        }
         $incident->update($data);
 
         return new IncidentResource($incident->fresh('maintenanceTicket'));

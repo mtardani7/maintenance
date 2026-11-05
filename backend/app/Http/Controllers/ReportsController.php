@@ -8,6 +8,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Support\PlantAccess;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportsController extends Controller
@@ -26,6 +27,12 @@ class ReportsController extends Controller
             'search' => ['nullable', 'string', 'max:120'],
             'sort' => ['nullable', 'in:newest,oldest,incidents_desc,incidents_asc'],
         ]);
+        $user = $request->user();
+        if ($user && ! $user->hasAllPlantAccess()) {
+            abort_if(isset($data['plant_id']) && ! PlantAccess::canAccess($user, $data['plant_id']), 403, 'Akun ini tidak memiliki akses ke Plant tersebut.');
+            abort_if($user->plant_id === null, 403, 'Plant belum ditetapkan untuk akun ini.');
+            $data['plant_id'] = $user->plant_id;
+        }
         if (! empty($data['machine_id']) && ! empty($data['plant_id'])) {
             abort_unless(DB::table('machines')->where('id', $data['machine_id'])->where('plant_id', $data['plant_id'])->exists(), 422, 'Mesin tidak termasuk dalam plant yang dipilih.');
         }

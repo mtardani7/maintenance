@@ -46,11 +46,12 @@ class AdminUserController extends Controller
         if ($request->filled('username')) {
             $request->merge(['username' => mb_strtolower(trim((string) $request->input('username')))]);
         }
-        $validated = $request->validate($this->rules());
+        $validated = $request->validate($this->rules(null, (string) $request->input('role')));
         $user = User::create([
             'name' => $validated['name'],
             'username' => isset($validated['username']) ? mb_strtolower($validated['username']) : null,
             'email' => $validated['email'],
+            'plant_id' => $validated['role'] === 'admin' ? null : $validated['plant_id'],
             'phone' => $validated['phone'] ?? null,
             'nik' => $validated['nik'] ?? null,
             'role' => $validated['role'],
@@ -67,7 +68,7 @@ class AdminUserController extends Controller
         if ($request->filled('username')) {
             $request->merge(['username' => mb_strtolower(trim((string) $request->input('username')))]);
         }
-        $validated = $request->validate($this->rules($user));
+        $validated = $request->validate($this->rules($user, (string) $request->input('role', $user->role)));
 
         DB::transaction(function () use ($request, $user, $validated): void {
             $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
@@ -82,6 +83,9 @@ class AdminUserController extends Controller
             }
 
             $profile = array_intersect_key($validated, array_flip(['name', 'email', 'phone', 'nik', 'role', 'is_active']));
+            if (array_key_exists('plant_id', $validated) || array_key_exists('role', $validated)) {
+                $profile['plant_id'] = ($validated['role'] ?? $lockedUser->role) === 'admin' ? null : $validated['plant_id'];
+            }
             if (array_key_exists('username', $validated)) {
                 $profile['username'] = $validated['username'] === null ? null : mb_strtolower($validated['username']);
             }
@@ -104,7 +108,7 @@ class AdminUserController extends Controller
         abort_unless($request->user()?->role === 'admin', 403);
     }
 
-    private function rules(?User $user = null): array
+    private function rules(?User $user = null, ?string $role = null): array
     {
         return [
             'name' => ['required', 'string', 'max:255'],
@@ -113,6 +117,7 @@ class AdminUserController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'nik' => ['nullable', 'string', 'max:100'],
             'role' => ['required', Rule::in(self::ROLES)],
+            'plant_id' => [($role ?? $user?->role) === 'admin' ? 'nullable' : 'required', 'nullable', 'integer', Rule::exists('plants', 'id')->where(fn ($query) => $query->where('is_active', true))],
             'is_active' => ['sometimes', 'boolean'],
             'password' => [$user ? 'nullable' : 'required', 'string', 'min:8', 'confirmed'],
         ];
@@ -125,6 +130,7 @@ class AdminUserController extends Controller
             'name' => $user->name,
             'username' => $user->username,
             'email' => $user->email,
+            'plant_id' => $user->plant_id,
             'phone' => $user->phone,
             'nik' => $user->nik,
             'role' => $user->role,

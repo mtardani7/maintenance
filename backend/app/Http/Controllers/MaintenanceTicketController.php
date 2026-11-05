@@ -8,6 +8,7 @@ use App\Models\MaintenanceTicket;
 use App\Models\MaintenanceTicketAudit;
 use App\Models\User;
 use App\Services\MaintenanceTicketCreator;
+use App\Support\PlantAccess;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,8 +24,12 @@ class MaintenanceTicketController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $tickets = MaintenanceTicket::query()
-            ->with(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts', 'attachments'])
+        $query = MaintenanceTicket::query()
+            ->with(['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts', 'attachments']);
+        if ($request->user()) {
+            PlantAccess::scope($query, $request->user(), 'maintenance_tickets.plant_id');
+        }
+        $tickets = $query
             ->when($request->filled('search'), function ($query) use ($request): void {
                 $search = trim($request->string('search')->toString());
                 $query->where(function ($ticketQuery) use ($search): void {
@@ -59,6 +64,10 @@ class MaintenanceTicketController extends Controller
             'source' => ['required', 'in:OPERATOR,QA'],
             'priority' => ['sometimes', 'in:LOW,MEDIUM,HIGH,CRITICAL'],
         ]);
+        PlantAccess::enforce($request->user(), $data['plant_id']);
+        $machine = \App\Models\Machine::query()->findOrFail($data['machine_id']);
+        PlantAccess::enforce($request->user(), $machine->plant_id);
+        abort_unless((int) $machine->plant_id === (int) $data['plant_id'], 422, 'Mesin tidak termasuk dalam Plant yang dipilih.');
         $data['reported_by'] = $request->user()->id;
 
         $ticket = $creator->create($data);
@@ -68,6 +77,7 @@ class MaintenanceTicketController extends Controller
 
     public function show(Request $request, MaintenanceTicket $ticket): JsonResponse
     {
+        PlantAccess::enforce($request->user(), $ticket->plant_id);
         $relations = ['plant', 'machine.plant', 'reporter', 'executor', 'actionBy', 'closedBy', 'spareParts', 'attachments'];
         if ($request->user()?->role === 'admin') {
             $relations[] = 'audits.user';
@@ -150,17 +160,21 @@ class MaintenanceTicketController extends Controller
         ];
     }
 
-    public function maintenanceUsers(): JsonResponse
+    public function maintenanceUsers(Request $request): JsonResponse
     {
-        return response()->json(User::query()
+        $query = User::query()
             ->where('role', 'technician')
-            ->orderBy('name')
-            ->get(['id', 'name', 'role']));
+            ->orderBy('name');
+        if ($request->user()) {
+            PlantAccess::scope($query, $request->user(), 'plant_id');
+        }
+        return response()->json($query->get(['id', 'name', 'role']));
     }
 
     public function action(Request $request, MaintenanceTicket $ticket, ?string $action = null): JsonResponse
     {
         $this->ensureMaintenance($request);
+        PlantAccess::enforce($request->user(), $ticket->plant_id);
 
         if ($ticket->status !== 'OPEN') {
             return response()->json(['message' => 'Only open tickets can be closed.'], 422);
@@ -249,6 +263,7 @@ class MaintenanceTicketController extends Controller
     public function update(Request $request, MaintenanceTicket $ticket): JsonResponse
     {
         $this->ensureMaintenance($request);
+        PlantAccess::enforce($request->user(), $ticket->plant_id);
 
         if ($ticket->status === 'CLOSED') {
             return response()->json(['message' => 'Closed tickets are historical records and cannot be edited.'], 422);
@@ -272,6 +287,7 @@ class MaintenanceTicketController extends Controller
     public function destroy(Request $request, MaintenanceTicket $ticket): JsonResponse
     {
         $this->ensureMaintenance($request);
+        PlantAccess::enforce($request->user(), $ticket->plant_id);
 
         if ($ticket->status === 'CLOSED') {
             return response()->json(['message' => 'Closed tickets are historical records and cannot be deleted.'], 422);

@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -23,6 +24,7 @@ class User extends Authenticatable
         'name',
         'username',
         'email',
+        'plant_id',
         'phone',
         'nik',
         'role',
@@ -51,8 +53,19 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'plant_id' => 'integer',
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function plant(): BelongsTo
+    {
+        return $this->belongsTo(Plant::class);
+    }
+
+    public function hasAllPlantAccess(): bool
+    {
+        return $this->role === 'admin';
     }
 }

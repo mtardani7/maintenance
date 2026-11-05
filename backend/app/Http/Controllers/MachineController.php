@@ -9,6 +9,7 @@ use Illuminate\Validation\Rule;
 use App\Models\Incident;
 use App\Models\MaintenanceTicket;
 use App\Services\MachineQrPayload;
+use App\Support\PlantAccess;
 
 class MachineController extends Controller
 {
@@ -24,6 +25,7 @@ class MachineController extends Controller
             ->first();
 
         if (! $machine) return response()->json(['message' => 'Mesin tidak ditemukan.'], 404);
+        PlantAccess::enforce($request->user(), $machine->plant_id);
         if (! $machine->is_active) return response()->json(['message' => 'Mesin sedang tidak aktif dan tidak dapat digunakan untuk laporan.'], 422);
 
         return response()->json([
@@ -35,6 +37,9 @@ class MachineController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Machine::query()->with('plant')->latest();
+        if ($request->user()) {
+            PlantAccess::scope($query, $request->user(), 'machines.plant_id');
+        }
 
         if ($request->filled('search')) {
             $search = $request->string('search')->toString();
@@ -63,6 +68,7 @@ class MachineController extends Controller
             'section' => ['nullable', 'string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
+        PlantAccess::enforce($request->user(), $validated['plant_id']);
 
         $machine = Machine::create([...$validated, 'created_by' => $request->user()->id, 'updated_by' => $request->user()->id]);
 
@@ -71,6 +77,7 @@ class MachineController extends Controller
 
     public function update(Request $request, Machine $machine): JsonResponse
     {
+        PlantAccess::enforce($request->user(), $machine->plant_id);
         $validated = $request->validate([
             'plant_id' => ['sometimes', 'integer', Rule::exists('plants', 'id')->where(fn ($query) => $query->where('is_active', true))],
             'code' => ['sometimes', 'string', 'max:100', Rule::unique('machines')->where(fn ($query) => $query->where('plant_id', $request->integer('plant_id', $machine->plant_id)))->ignore($machine->id)],
@@ -78,6 +85,7 @@ class MachineController extends Controller
             'section' => ['nullable', 'string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
+        PlantAccess::enforce($request->user(), $validated['plant_id'] ?? $machine->plant_id);
         $validated['updated_by'] = $request->user()->id;
         $machine->update($validated);
 
@@ -86,6 +94,7 @@ class MachineController extends Controller
 
     public function destroy(Request $request, Machine $machine): JsonResponse
     {
+        PlantAccess::enforce($request->user(), $machine->plant_id);
         $hasHistory = Incident::where('machine_id', $machine->id)->exists()
             || MaintenanceTicket::where('machine_id', $machine->id)->exists();
         $machine->update(['is_active' => false, 'updated_by' => $request->user()->id]);

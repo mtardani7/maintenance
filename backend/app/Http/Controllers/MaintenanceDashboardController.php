@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\Support\PlantAccess;
 
 class MaintenanceDashboardController extends Controller
 {
@@ -19,6 +20,11 @@ class MaintenanceDashboardController extends Controller
 
         $periodDays = (int) ($filters['period_days'] ?? 30);
         $plantId = $filters['plant_id'] ?? null;
+        $user = $request->user();
+        if ($user && ! $user->hasAllPlantAccess()) {
+            abort_if($plantId !== null && ! PlantAccess::canAccess($user, $plantId), 403, 'Akun ini tidak memiliki akses ke Plant tersebut.');
+            $plantId = $user->plant_id ?? -1;
+        }
         $now = now();
         $from = $now->copy()->subDays($periodDays - 1)->startOfDay();
         $todayStart = $now->copy()->startOfDay();

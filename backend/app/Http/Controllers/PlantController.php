@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Plant;
+use App\Support\PlantAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,9 @@ class PlantController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Plant::query()->latest();
+        if ($request->user()) {
+            PlantAccess::scope($query, $request->user(), 'plants.id');
+        }
         if ($request->filled('search')) {
             $search = $request->string('search')->toString();
             $query->where(fn (Builder $builder) => $builder

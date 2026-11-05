@@ -43,7 +43,7 @@ export default function LoginPage() {
           <label className="login-screen__field block text-sm font-medium text-slate-900">Kata sandi
             <input className="login-screen__input mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-transparent px-3 outline-none focus:border-emerald-500" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="••••••••" required />
           </label>
-          <button className="login-screen__submit h-11 w-full rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={busy}>{busy ? 'Sedang masuk...' : 'Masuk'}</button>
+          <button className="login-screen__submit h-11 w-full rounded-lg bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-60" type="submit" disabled={busy}>{busy ? 'Sedang masuk...' : 'Masuk'}</button>
         </form>
       </section>
     </div>
