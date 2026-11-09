@@ -3754,6 +3754,31 @@ html[data-theme="dark"] .plant-browser .plant-modal__header .icon-button:hover {
 	background: rgb(248 113 113 / .12);
 	color: #f87171;
 }
+.incident-modal .incident-detail-heading .icon-button {
+	display: grid;
+	flex: 0 0 40px;
+	width: 40px;
+	height: 40px;
+	place-items: center;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--panel);
+	color: var(--text-secondary);
+	transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+}
+.incident-modal .incident-detail-heading .icon-button svg { width: 18px; height: 18px; stroke-width: 2.2; }
+.incident-modal .incident-detail-heading .icon-button:hover {
+	transform: rotate(90deg);
+	border-color: rgb(220 38 38 / .3);
+	background: rgb(220 38 38 / .08);
+	color: #dc2626;
+}
+.incident-modal .incident-detail-heading .icon-button:focus-visible { outline: 3px solid rgb(20 184 166 / .35); outline-offset: 2px; }
+html[data-theme="dark"] .incident-modal .incident-detail-heading .icon-button:hover {
+	border-color: rgb(248 113 113 / .4);
+	background: rgb(248 113 113 / .12);
+	color: #f87171;
+}
 .reports-dashboard .report-controls label { display: block; min-width: 0; }
 .reports-dashboard .report-controls select {
 	display: block;
