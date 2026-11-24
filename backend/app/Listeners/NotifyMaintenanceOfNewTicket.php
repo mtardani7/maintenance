@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\TicketCreated;
 use App\Models\User;
+use App\Jobs\SendNewTicketEmail;
 use App\Notifications\MaintenanceTicketCreatedNotification;
 
 class NotifyMaintenanceOfNewTicket
@@ -11,6 +12,9 @@ class NotifyMaintenanceOfNewTicket
     public function handle(TicketCreated $event): void
     {
         $ticket = $event->ticket->loadMissing('machine');
+        if ($event->incident->reporter()->where('role', 'operator')->exists()) {
+            SendNewTicketEmail::dispatch((int) $ticket->getKey());
+        }
         $recipients = User::query()->where('role', 'technician')->where('is_active', true);
         if ($ticket->action_by_id) $recipients->whereKey($ticket->action_by_id);
 

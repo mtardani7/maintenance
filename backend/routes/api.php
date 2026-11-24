@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminUserController;
+use App\Http\Controllers\AdminEmailSettingsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MachineController;
 use App\Http\Controllers\PlantController;
@@ -19,6 +20,9 @@ Route::middleware('auth:sanctum')->get('/me', [AuthController::class, 'me']);
 Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
 
 Route::middleware('auth:sanctum')->group(function (): void {
+	Route::get('/admin/settings/email-automation', [AdminEmailSettingsController::class, 'show']);
+	Route::put('/admin/settings/email-automation', [AdminEmailSettingsController::class, 'update']);
+	Route::post('/admin/settings/monthly-report/send', [AdminEmailSettingsController::class, 'sendReport']);
 	Route::get('/reports/metrics', [ReportsController::class, 'index']);
 	Route::get('/reports/export', [ReportsController::class, 'export']);
 	Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);

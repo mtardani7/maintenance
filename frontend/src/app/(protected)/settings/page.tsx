@@ -1,6 +1,6 @@
-import { AdminUserForm } from '@/components/admin-user-form';
 import { SectionHeading } from '@/components/ui';
+import { EmailAutomationSettings } from '@/components/email-automation-settings';
 
 export default function SettingsPage() {
-		return <><SectionHeading eyebrow="Konfigurasi" title="Pengaturan" description="Kelola konfigurasi sistem pemeliharaan dan pengguna." /><AdminUserForm /></>;
+	return <div className="settings-page"><SectionHeading eyebrow="Konfigurasi" title="Pengaturan email" description="Atur penerima notifikasi tiket dan jadwal laporan pemeliharaan." /><EmailAutomationSettings /></div>;
 }
